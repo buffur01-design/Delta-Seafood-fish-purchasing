@@ -1,4 +1,4 @@
-name: Update FMF data and deploy website
+name: Update fisheries data and deploy website
 
 on:
   push:
@@ -14,13 +14,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: fmf-data-and-pages
+  group: fisheries-data-and-pages
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -50,17 +50,38 @@ jobs:
           done
           exit 1
 
-      - name: Commit updated FMF data
+      - name: Collect latest Vørn fisheries landings
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            python "Ny mappe/delta_fisheries_collector.py" \
+              --out reports \
+              --seed-web-json data/fisheries-dashboard.json \
+              --seed-web-vessel-dir data/vessels \
+              --web-json data/fisheries-dashboard.json \
+              --web-vessel-dir data/vessels \
+              --collect-vessels \
+              --refresh-days 14 \
+              --resume && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Vørn collection attempt $attempt failed; retrying in 60 seconds."
+              sleep 60
+            fi
+          done
+          exit 1
+
+      - name: Commit updated fisheries data
         if: github.event_name != 'push'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/fmf
+          git add data/fmf data/fisheries-dashboard.json data/vessels
           if git diff --cached --quiet; then
-            echo "FMF data is already current."
+            echo "Fisheries data is already current."
           else
-            git commit -m "Update FMF auction data"
+            git commit -m "Update fisheries data"
             git pull --rebase origin main
             git push
           fi

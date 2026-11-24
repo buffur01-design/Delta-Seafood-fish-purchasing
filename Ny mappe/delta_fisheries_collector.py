@@ -504,7 +504,10 @@ def collect_day(c, day, session, raw_root, delay, *, offline_dir=None):
                 group_data[gid][species] = (q, v, quality, parents["AMOUNT"], parents["VALUE"])
         count = sum(len(v) for v in group_data.values())
         if count == 0:
-            raise ValueError("No species totals found; rejecting day rather than overwriting historical records")
+            message = "No published species totals; previous database records remain unchanged"
+            LOG.info("%s EMPTY: %s groups, %s", day, len(ids_amount), message)
+            record_run(c, day, "EMPTY", message, len(ids_amount), 0)
+            return True
         now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
         with c:
             # Replace a day's rows only after ALL groups and metrics succeed.
@@ -972,7 +975,7 @@ def main(argv=None):
             if args.resume:
                 if not args.vessels_only:
                     completed = {row[0] for row in c.execute(
-                        "SELECT DISTINCT date FROM runs WHERE outcome IN ('OK','REVIEW')"
+                        "SELECT DISTINCT date FROM runs WHERE outcome IN ('OK','REVIEW','EMPTY')"
                     )}
                 if args.collect_vessels or args.vessels_only:
                     vessel_completed = {row[0] for row in c.execute(
