@@ -284,7 +284,7 @@
   function applyTranslations(){
     elements.eyebrow.textContent=copy.eyebrow;
     elements.title.textContent=copy.title;
-    elements.intro.textContent=copy.intro;
+    if(elements.intro) elements.intro.textContent=copy.intro;
     elements.updated.textContent=copy.loadingLatest;
     elements.shipGroupLabel.textContent=copy.shipGroup;
     elements.groupSummary.textContent=copy.allShipGroups;
@@ -295,7 +295,7 @@
     elements.combinedOption.textContent=copy.combinedOption;
     elements.totalOption.textContent=copy.totalOption;
     elements.status.textContent=copy.loadingData;
-    elements.graphTitle.textContent=copy.quantityTitle;
+    if(elements.graphTitle) elements.graphTitle.textContent=copy.quantityTitle;
     elements.graphDescription.textContent=copy.quantityDescription;
     elements.speciesSelector.setAttribute("aria-label",copy.chooseSpecies);
     elements.splitGroupsLabel.textContent=copy.splitGroups;
@@ -859,7 +859,7 @@
     const days=[...activeDates].sort();
     updateSummaries(groups);
     const primaryMetric=metric==="combined"?"quantity":metric;
-    elements.graphTitle.textContent=metric==="price"?copy.priceTitle:(metric==="combined"?copy.combinedTitle:(metric==="total"?copy.totalTitle:copy.quantityTitle));
+    if(elements.graphTitle) elements.graphTitle.textContent=metric==="price"?copy.priceTitle:(metric==="combined"?copy.combinedTitle:(metric==="total"?copy.totalTitle:copy.quantityTitle));
     elements.graphDescription.textContent=metric==="price"?copy.priceDescription:(metric==="combined"?copy.combinedDescription:(metric==="total"?copy.totalDescription:copy.quantityDescription));
     if(metric!=="combined"){
       clearChartHover(quantityChart);

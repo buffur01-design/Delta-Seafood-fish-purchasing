@@ -976,7 +976,6 @@
         <div>
           <p class="dashboard-eyebrow" id="dashboard-eyebrow">Market intelligence</p>
           <h2 id="dashboard-title">Fisheries landings dashboard in the Faroe Islands</h2>
-          <p id="dashboard-intro">Explore daily reported landing volume and weighted sales value per kilogram by species and ship group.</p>
         </div>
         <div class="dashboard-updated" id="updated">Loading latest data…</div>
       </header>
@@ -1005,7 +1004,6 @@
       <div id="dashboard" hidden>
         <div class="dashboard-charts">
           <article class="dashboard-chart-card">
-            <h3 id="graph-title">Daily amount landed by species</h3>
             <p id="graph-description">Choose species below. Your first click shows only that species; later clicks add or remove species. Click a line to focus it, then hover to see vessel details.</p>
             <div class="dashboard-species-selector" id="species-selector" aria-label="Choose species"></div>
             <div class="dashboard-line-controls" aria-label="Line detail options">
@@ -1521,7 +1519,7 @@
   <script>
     if(new URLSearchParams(window.location.search).get("view") !== "selling"){
       const dashboardScript = document.createElement("script");
-      dashboardScript.src = "fisheries-dashboard.js?v=26";
+      dashboardScript.src = "fisheries-dashboard.js?v=27";
       document.body.appendChild(dashboardScript);
 
       window.addEventListener("delta-language-change", () => {
