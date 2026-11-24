@@ -70,6 +70,8 @@ def size_group(value: str) -> str:
         return code
     if lower == upper:
         return f"{lower} {unit}"
+    if lower == 0:
+        return f"upp til {upper} {unit}"
     if upper in (0, 999):
         return f"{lower}+ {unit}"
     return f"{lower}–{upper} {unit}"
