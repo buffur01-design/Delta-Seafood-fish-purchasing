@@ -90,11 +90,24 @@
   }
 
   function drillChartToVessels(elements) {
-    if (!elements.length || (el.split.checked && !(metric === "size" && !focusedProductGroup))) return;
+    if (!elements.length) return;
     const hit = elements[0];
     const clickedLabel = metric === "total"
       ? chart.data.labels[hit.index]
       : chart.data.datasets[hit.datasetIndex]?.label;
+    if (metric === "size" && focusedProductGroup && el.split.checked) {
+      const clickedDate = chart.data.labels[hit.index];
+      const vesselMatches = baseFiltered().filter(row => row.vessel === clickedLabel && row.sale_date === clickedDate);
+      if (!vesselMatches.length) return;
+      selectedVessels = new Set(vesselMatches.map(vesselKey));
+      focusedProductGroup = "";
+      focusedSize = "";
+      renderSizes();
+      renderVessels();
+      render();
+      return;
+    }
+    if (el.split.checked && !(metric === "size" && !focusedProductGroup)) return;
     if (metric === "size" && !focusedProductGroup) {
       const match = rows.find(row => row.product_group === clickedLabel);
       if (!match) return;
@@ -120,7 +133,7 @@
   fetch("data/fmf/fmf_auctions.json", { cache: "no-store" }).then(response => { if (!response.ok) throw Error(`HTTP ${response.status}`); return response.json(); }).then(payload => {
     rows = payload.rows; dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set([...new Set(rows.map(row => row.species))].slice(0, 10)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true;
     el.from.min = el.to.min = 0; el.from.value = 0; el.to.value = Math.max(0, dates.length - 1); el.months.innerHTML = [...new Set(dates.map(date => date.slice(0, 7)))].map(month => `<span>${month}</span>`).join(""); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
-    chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || (metric === "size" && !focusedProductGroup); event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
+    chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderSizes(); renderVessels(); render();
     el.from.oninput = el.to.oninput = () => { renderSizes(); renderVessels(); render(); }; el.split.onchange = render; el.vesselSearch.addEventListener("input", render);
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
