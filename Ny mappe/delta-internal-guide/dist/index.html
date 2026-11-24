@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Delta Seafood internal information guide">
+  <title>Delta Seafood · Internal Guide</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button>
+    <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
+      <div class="nav-group nav-left">
+        <a href="#overview">Overview</a>
+        <a href="#markets">Markets</a>
+      </div>
+      <a class="brand" href="#top" aria-label="Delta Seafood internal guide home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-name">DELTA</span>
+        <span class="brand-subtitle">SEAFOOD</span>
+      </a>
+      <div class="nav-group nav-right">
+        <a href="#facilities">Facilities</a>
+        <a href="#contacts">Contacts</a>
+        <a href="#resources">Resources</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="intro" id="overview">
+      <p class="eyebrow">Internal information guide</p>
+      <h1>Delta Seafood at a glance</h1>
+      <p class="lede">A practical starting point for colleagues: key markets, facilities, contacts and shared resources in one place.</p>
+      <div class="quick-links" aria-label="Guide sections">
+        <a href="#markets">Explore markets</a>
+        <a href="#contacts">Find a contact</a>
+      </div>
+    </section>
+
+    <section class="market-section" id="markets" aria-labelledby="markets-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Commercial footprint</p>
+          <h2 id="markets-title">Our markets</h2>
+        </div>
+        <p>Select a market to view its role in the network.</p>
+      </div>
+
+      <div class="market-card">
+        <div class="graph-wrap">
+          <svg class="market-graph" viewBox="0 0 1000 520" role="img" aria-labelledby="graph-title graph-desc">
+            <title id="graph-title">Delta Seafood market network</title>
+            <desc id="graph-desc">Delta Seafood in the Faroe Islands connects to Spain, Italy and the United States.</desc>
+            <defs>
+              <linearGradient id="sea" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#eaf5f9"/>
+                <stop offset="1" stop-color="#cfe8f3"/>
+              </linearGradient>
+              <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#123c50" flood-opacity=".16"/>
+              </filter>
+            </defs>
+            <rect x="1" y="1" width="998" height="518" rx="28" fill="url(#sea)"/>
+            <g class="grid-lines" aria-hidden="true">
+              <path d="M0 130H1000M0 260H1000M0 390H1000"/>
+              <path d="M200 0V520M400 0V520M600 0V520M800 0V520"/>
+            </g>
+            <g class="routes" aria-hidden="true">
+              <path d="M535 155C500 220 420 275 338 328"/>
+              <path d="M535 155C550 235 590 286 635 338"/>
+              <path d="M535 155C430 155 300 190 170 250"/>
+            </g>
+            <g class="node home-node" transform="translate(535 155)" data-market="Faroe Islands" tabindex="0" role="button" aria-label="Faroe Islands, Delta Seafood home base">
+              <circle r="54"/>
+              <path d="M-24-10C-4-28 20-26 34-11 15-8 1 1-7 18-17 14-26 4-24-10Z"/>
+              <text y="80">FAROE ISLANDS</text>
+            </g>
+            <g class="node" transform="translate(338 328)" data-market="Spain" tabindex="0" role="button" aria-label="Spain market">
+              <circle r="38"/><circle class="node-core" r="10"/><text y="64">SPAIN</text>
+            </g>
+            <g class="node" transform="translate(635 338)" data-market="Italy" tabindex="0" role="button" aria-label="Italy market">
+              <circle r="38"/><circle class="node-core" r="10"/><text y="64">ITALY</text>
+            </g>
+            <g class="node" transform="translate(170 250)" data-market="USA" tabindex="0" role="button" aria-label="United States market">
+              <circle r="38"/><circle class="node-core" r="10"/><text y="64">USA</text>
+            </g>
+          </svg>
+        </div>
+        <aside class="market-detail" aria-live="polite">
+          <span class="detail-label">Selected market</span>
+          <h3 id="market-name">Faroe Islands</h3>
+          <p id="market-description">Home base for Delta Seafood operations and coordination.</p>
+          <dl>
+            <div><dt>Region</dt><dd id="market-region">North Atlantic</dd></div>
+            <div><dt>Focus</dt><dd id="market-focus">Operations</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <section class="guide-grid" aria-label="Internal guide highlights">
+      <article id="facilities"><span>01</span><h2>Facilities</h2><p>Add site access, production, storage and safety information here.</p><a href="#">Open facility guide</a></article>
+      <article id="contacts"><span>02</span><h2>Contacts</h2><p>Keep team owners, phone numbers and escalation routes easy to find.</p><a href="#">Open contact list</a></article>
+      <article id="resources"><span>03</span><h2>Resources</h2><p>Link policies, forms, product material and onboarding documents here.</p><a href="#">Open resources</a></article>
+    </section>
+  </main>
+
+  <footer><p>Delta Seafood · Internal use</p><p>Template updated November 2026</p></footer>
+  <script src="script.js"></script>
+</body>
+</html>
