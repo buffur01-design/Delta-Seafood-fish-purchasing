@@ -117,13 +117,14 @@ def main(argv=None) -> int:
     parser.add_argument("--start-year", type=int, default=today.year - 2)
     parser.add_argument("--end-year", type=int, default=today.year)
     parser.add_argument("--out", default="data/norway/norway-landings.json")
+    parser.add_argument("--export-only", action="store_true", help="Rebuild derived files from the existing full dataset")
     args = parser.parse_args(argv)
     if args.start_year < 2000 or args.end_year < args.start_year or args.end_year > today.year:
         parser.error("Invalid year range")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     destination = Path(args.out)
     existing = load_existing(destination)
-    refreshed_years = set(range(args.start_year, args.end_year + 1))
+    refreshed_years = set() if args.export_only else set(range(args.start_year, args.end_year + 1))
     retained = [row for row in existing.get("rows", []) if int(row[3]) not in refreshed_years]
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/zip"})
@@ -145,6 +146,23 @@ def main(argv=None) -> int:
     temporary = destination.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     temporary.replace(destination)
+    maximum_day = max(row[0] for row in rows)
+    cutoff = (dt.date.fromisoformat(maximum_day) - dt.timedelta(days=400)).isoformat()
+    latest_payload = {
+        "version": 1,
+        "updated_utc": payload["updated_utc"],
+        "source": SOURCE,
+        "fields": FIELDS,
+        "species": payload["species"],
+        "min_date": min(row[0] for row in rows),
+        "max_date": maximum_day,
+        "latest_start": cutoff,
+        "rows": [row for row in rows if row[0] >= cutoff],
+    }
+    latest_destination = destination.with_name("norway-latest.json")
+    temporary_latest = latest_destination.with_suffix(".json.tmp")
+    temporary_latest.write_text(json.dumps(latest_payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary_latest.replace(latest_destination)
     LOG.info("Saved %s rows covering %s-%s", len(rows), payload["years"][0], payload["years"][-1])
     return 0
 
