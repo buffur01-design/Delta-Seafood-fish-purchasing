@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Explore Delta Seafood markets on an interactive world map." data-content-en="Explore Delta Seafood markets on an interactive world map." data-content-fo="Kanna marknaðirnar hjá Delta Seafood á einum samvirknum heimskorti.">
+  <title>Markets - Delta Seafood</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+  <style>
+    :root{
+      --navy:#16384c;
+      --ink:#1f3c4d;
+      --muted:#557184;
+      --ice:#f3f9fc;
+      --line:#d6e7f1;
+      --green:#08752f;
+      --white:#fff;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      background:#fff;
+      color:var(--ink);
+      font-family:Arial, sans-serif;
+    }
+
+    a{ color:inherit; }
+
+    .skip-link{
+      position:fixed;
+      top:10px;
+      left:10px;
+      z-index:100000;
+      padding:10px 16px;
+      border-radius:8px;
+      background:var(--navy);
+      color:#fff;
+      text-decoration:none;
+      transform:translateY(-150%);
+    }
+
+    .skip-link:focus{ transform:translateY(0); }
+
+    .navbar{
+      position:relative;
+      z-index:1000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:120px;
+      background:linear-gradient(to bottom, #cfe8f3, #fff);
+    }
+
+    .logo{
+      position:absolute;
+      left:50%;
+      z-index:1001;
+      transform:translateX(-50%);
+    }
+
+    .logo img{ display:block; width:170px; }
+
+    .menu-left{
+      position:absolute;
+      right:calc(50% + 160px);
+      display:flex;
+      align-items:center;
+      gap:50px;
+    }
+
+    .menu-right{
+      position:absolute;
+      left:calc(50% + 160px);
+      display:flex;
+      align-items:center;
+      gap:50px;
+    }
+
+    .navbar a{
+      color:#000;
+      font-size:20px;
+      font-weight:700;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+
+    .navbar a[aria-current="page"]{ color:var(--navy); }
+
+    .nav-item{ position:relative; display:inline-block; }
+
+    .dropdown{
+      position:absolute;
+      top:100%;
+      left:50%;
+      z-index:9999;
+      display:none;
+      min-width:210px;
+      overflow:hidden;
+      border-radius:10px;
+      background:#fff;
+      box-shadow:0 12px 30px rgba(0,0,0,.15);
+      transform:translateX(-50%);
+    }
+
+    .dropdown a{
+      display:block;
+      padding:14px 18px;
+      color:#000;
+      font-size:16px;
+      text-align:left;
+    }
+
+    .dropdown a:hover{ background:#f1f7fb; }
+    .nav-item:hover .dropdown{ display:block; }
+
+    .markets-page .markets-map-shell{
+      position:relative;
+      width:100%;
+      padding:clamp(18px, 4vw, 56px) !important;
+      overflow:visible;
+      background:#eef6fa;
+    }
+
+    .markets-headline{
+      width:min(1280px, 100%);
+      margin:0 auto clamp(16px, 2.5vw, 28px);
+      color:var(--ink);
+      font-size:clamp(24px, 3vw, 34px);
+      font-weight:900;
+      line-height:1.2;
+      text-align:center;
+    }
+
+    .markets-buy-intro{
+      width:min(960px, 100%);
+      margin:-8px auto clamp(22px, 3vw, 34px);
+      color:#4f6876;
+      font-size:clamp(17px, 1.7vw, 21px);
+      line-height:1.65;
+      text-align:center;
+    }
+
+    .markets-buy-intro a{
+      color:#08752f;
+      font-weight:800;
+      text-underline-offset:3px;
+    }
+
+    .markets-map-frame{
+      position:relative;
+      width:min(1280px, 100%);
+      margin:0 auto;
+      overflow:hidden;
+      border:1px solid #c5dce7;
+      border-radius:24px;
+      background:#aad3df;
+      box-shadow:0 18px 48px rgba(10,49,69,.16);
+    }
+
+    .markets-page #markets-map{
+      width:100%;
+      height:clamp(520px, 68svh, 720px);
+      background:#aad3df;
+      font-family:Arial, sans-serif;
+      touch-action:none;
+    }
+
+    .markets-page footer{
+      margin-top:0 !important;
+    }
+
+    .map-visually-hidden{
+      position:absolute !important;
+      width:1px !important;
+      height:1px !important;
+      padding:0 !important;
+      margin:-1px !important;
+      overflow:hidden !important;
+      clip:rect(0, 0, 0, 0) !important;
+      white-space:nowrap !important;
+      border:0 !important;
+    }
+
+    .map-loading{
+      position:absolute;
+      z-index:800;
+      inset:0;
+      display:grid;
+      margin:0;
+      padding:24px;
+      background:linear-gradient(135deg, #d9edf5, #a9cfdf);
+      color:var(--navy);
+      font-size:18px;
+      font-weight:800;
+      text-align:center;
+      place-items:center;
+      transition:opacity .2s ease, visibility .2s ease;
+      pointer-events:none;
+    }
+
+    .markets-map-shell.map-ready .map-loading{
+      opacity:0;
+      visibility:hidden;
+    }
+
+    .markets-map-shell.map-error .map-loading{
+      background:#eef6fa;
+      opacity:1;
+      visibility:visible;
+    }
+
+    .leaflet-container{
+      color:var(--ink);
+    }
+
+    .leaflet-container:focus-visible{
+      outline:4px solid var(--navy);
+      outline-offset:-4px;
+    }
+
+    .leaflet-control-zoom{
+      overflow:hidden;
+      border:0 !important;
+      border-radius:14px !important;
+      box-shadow:0 10px 28px rgba(10,49,69,.24) !important;
+    }
+
+    .leaflet-control-zoom a{
+      display:grid !important;
+      width:44px !important;
+      height:44px !important;
+      border:0 !important;
+      background:#fff !important;
+      color:var(--navy) !important;
+      font-size:25px !important;
+      line-height:1 !important;
+      place-items:center;
+    }
+
+    .leaflet-control-zoom a + a{
+      border-top:1px solid #d5e5ed !important;
+    }
+
+    .leaflet-control-zoom a:hover,
+    .leaflet-control-zoom a:focus-visible{
+      background:#eef7fb !important;
+      color:#08752f !important;
+    }
+
+    .leaflet-control-attribution{
+      padding:4px 7px !important;
+      background:rgba(255,255,255,.9) !important;
+      color:#3f5c6c !important;
+      font-size:11px !important;
+    }
+
+    .leaflet-control-attribution a{
+      color:#174e68 !important;
+    }
+
+    .delta-leaflet-icon{
+      border:0;
+      background:transparent;
+      touch-action:none;
+    }
+
+    .delta-map-pin{
+      position:relative;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      width:68px;
+      height:74px;
+      background:transparent;
+      filter:drop-shadow(0 6px 8px rgba(8,43,58,.28));
+      transform-origin:34px 72px;
+      transition:filter .2s ease, transform .2s ease;
+    }
+
+    .delta-map-logo{
+      display:block;
+      width:68px;
+      height:68px;
+      background-image:url("./delta-bumerki  uttan tekst.png");
+      background-repeat:no-repeat;
+      background-position:center 33px;
+      background-size:contain;
+    }
+    
+    .buy-map-cod{
+      display:block;
+      width:54px;
+      height:54px;
+      object-fit:contain;
+      filter:drop-shadow(0 5px 5px rgba(0,0,0,.28));
+    }
+
+    .buy-map-marker{
+      position:relative;
+      display:flex;
+      width:60px;
+      height:74px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-direction:column;
+    }
+
+    .buy-map-arrow{
+      width:0;
+      height:0;
+      margin-top:-4px;
+      border-top:18px solid #08752f;
+      border-right:11px solid transparent;
+      border-left:11px solid transparent;
+      filter:drop-shadow(0 3px 2px rgba(0,0,0,.25));
+    }
+
+    .buy-area-cod{
+      display:block;
+      width:30px;
+      height:22px;
+      object-fit:contain;
+      filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));
+      opacity:.92;
+      pointer-events:none;
+    }
+
+    .buy-area-cod-icon{ pointer-events:none !important; }
+
+    .delta-map-pin::after{
+      position:absolute;
+      top:58px;
+      left:50%;
+      border-top:14px solid #08752f;
+      border-right:9px solid transparent;
+      border-left:9px solid transparent;
+      content:"";
+      transform:translateX(-50%);
+    }
+
+    .leaflet-marker-icon:hover .delta-map-pin,
+    .leaflet-marker-icon:focus .delta-map-pin{
+      filter:drop-shadow(0 9px 12px rgba(8,43,58,.36));
+      transform:translateY(-3px) scale(1.06);
+    }
+
+    .leaflet-marker-icon:focus-visible{
+      outline:none;
+    }
+
+    .leaflet-marker-icon:focus-visible .delta-map-pin{
+      border-radius:14px;
+      box-shadow:0 0 0 4px rgba(22,56,76,.8);
+    }
+
+    .country-tooltip{
+      padding:6px 10px !important;
+      border:0 !important;
+      border-radius:999px !important;
+      background:var(--navy) !important;
+      color:#fff !important;
+      font-size:13px !important;
+      font-weight:800 !important;
+      box-shadow:0 7px 18px rgba(8,43,58,.2) !important;
+    }
+
+    .country-tooltip::before{
+      border-top-color:var(--navy) !important;
+    }
+
+    .fisheries-dashboard{
+      width:min(1280px, 100%);
+      margin:clamp(28px, 5vw, 58px) auto 0;
+      color:var(--ink);
+    }
+
+    .dashboard-heading{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:24px;
+      margin-bottom:22px;
+    }
+
+    .dashboard-heading > div:first-child{
+      flex:1 1 auto;
+      min-width:0;
+    }
+
+    .dashboard-eyebrow{
+      margin:0 0 7px;
+      color:#08752f;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+    }
+
+    .dashboard-heading h2{
+      margin:0;
+      font-size:clamp(27px, 4vw, 44px);
+      line-height:1.05;
+    }
+
+    .dashboard-heading p:not(.dashboard-eyebrow){
+      max-width:none;
+      margin:12px 0 0;
+      color:#5e7582;
+      line-height:1.55;
+    }
+
+    @media(min-width:1200px){
+      .dashboard-heading p:not(.dashboard-eyebrow){
+        white-space:nowrap;
+      }
+    }
+
+    .dashboard-updated{
+      flex:0 0 auto;
+      padding:11px 15px;
+      border:1px solid #c5dce7;
+      border-radius:999px;
+      background:#fff;
+      color:#5e7582;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .dashboard-panel,
+    .dashboard-chart-card{
+      border:1px solid #c5dce7;
+      border-radius:20px;
+      background:#fff;
+      box-shadow:0 14px 38px rgba(22,56,76,.07);
+    }
+
+    .dashboard-filters{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(150px, 1fr));
+      gap:14px;
+      margin-bottom:20px;
+      padding:18px;
+    }
+    .dashboard-filters[hidden]{ display:none; }
+
+    .dashboard-filters > label,
+    .dashboard-filter-field{
+      display:grid;
+      gap:7px;
+      color:#5e7582;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .dashboard-filters input{
+      width:100%;
+      min-height:44px;
+      padding:9px 11px;
+      border:1px solid #bdd3dd;
+      border-radius:10px;
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+    }
+
+    .dashboard-filters select{
+      width:100%;
+      min-height:44px;
+      padding:9px 11px;
+      border:1px solid #bdd3dd;
+      border-radius:10px;
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+    }
+
+    .dashboard-filter-menu{
+      position:relative;
+      min-height:44px;
+      border:1px solid #bdd3dd;
+      border-radius:10px;
+      background:#fff;
+      color:var(--ink);
+      font-size:14px;
+      font-weight:400;
+      letter-spacing:normal;
+      text-transform:none;
+    }
+
+    .dashboard-filter-menu summary{
+      min-height:42px;
+      padding:12px 34px 10px 11px;
+      cursor:pointer;
+      font-weight:700;
+      list-style:none;
+    }
+
+    .dashboard-filter-menu summary::-webkit-details-marker{ display:none; }
+    .dashboard-filter-menu summary::after{ position:absolute; top:12px; right:12px; content:"▾"; }
+
+    .dashboard-checkboxes{
+      position:absolute;
+      z-index:900;
+      top:calc(100% + 6px);
+      left:0;
+      width:max(100%, 260px);
+      max-height:310px;
+      padding:8px;
+      overflow:auto;
+      border:1px solid #bdd3dd;
+      border-radius:12px;
+      background:#fff;
+      box-shadow:0 14px 32px rgba(22,56,76,.18);
+    }
+
+    .dashboard-deselect-all{
+      position:sticky;
+      z-index:1;
+      top:-8px;
+      display:block;
+      width:100%;
+      margin:0 0 6px;
+      padding:9px 10px;
+      border:0;
+      border-bottom:1px solid #d5e5ed;
+      background:#fff;
+      color:#9d2727;
+      cursor:pointer;
+      font:inherit;
+      font-size:13px;
+      font-weight:800;
+      text-align:left;
+    }
+
+    .dashboard-deselect-all:hover,
+    .dashboard-deselect-all:focus-visible{ background:#fff3f3; }
+
+    .dashboard-checkboxes label{
+      display:flex;
+      align-items:center;
+      gap:9px;
+      padding:8px;
+      border-radius:7px;
+      color:var(--ink);
+      cursor:pointer;
+      font-size:14px;
+      font-weight:600;
+    }
+
+    .dashboard-checkboxes label:hover{ background:#eef6fa; }
+    .dashboard-checkboxes input{ width:17px; min-height:17px; margin:0; accent-color:#08752f; }
+
+    .dashboard-charts{ display:block; }
+    .dashboard-chart-card{ min-width:0; padding:20px; }
+    .dashboard-chart-card h3{ margin:0 0 4px; font-size:20px; }
+    .dashboard-chart-card > p{ margin:0 0 18px; color:#5e7582; font-size:13px; }
+    .dashboard-species-selector{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:0 0 20px;
+      padding:14px;
+      border:1px solid #d5e5ed;
+      border-radius:14px;
+      background:#f7fbfd;
+    }
+
+    .dashboard-species-button{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      padding:7px 10px;
+      border:1px solid #c5dce7;
+      border-radius:999px;
+      background:#fff;
+      color:#5e7582;
+      cursor:pointer;
+      font:inherit;
+      font-size:13px;
+      font-weight:700;
+      transition:opacity .15s ease, border-color .15s ease, background .15s ease;
+    }
+
+    .dashboard-species-button::before{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:var(--species-colour);
+      content:"";
+    }
+
+    .dashboard-species-button:not(.is-selected){ opacity:.55; }
+    .dashboard-species-button.is-selected{
+      border-color:var(--species-colour);
+      background:#fff;
+      color:var(--ink);
+      box-shadow:inset 0 0 0 1px var(--species-colour);
+    }
+
+    .dashboard-species-button:hover,
+    .dashboard-species-button:focus-visible{ opacity:1; border-color:var(--species-colour); }
+    .dashboard-line-controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px 22px;
+      margin:0 0 18px;
+      padding:12px 14px;
+      border:1px solid #d5e5ed;
+      border-radius:12px;
+      background:#f7fbfd;
+    }
+    .dashboard-line-controls label{
+      display:flex;
+      align-items:center;
+      gap:9px;
+      color:var(--ink);
+      cursor:pointer;
+      font-size:13px;
+      font-weight:800;
+    }
+    .dashboard-line-controls input{ width:17px; height:17px; accent-color:#08752f; }
+    .dashboard-line-controls label:has(input:disabled){ opacity:.45; cursor:not-allowed; }
+    .dashboard-group-toggle{
+      padding:9px 17px;
+      border:1px solid #08752f;
+      border-radius:999px;
+      background:#fff;
+      color:#08752f;
+      cursor:pointer;
+      font:inherit;
+      font-size:13px;
+      font-weight:900;
+    }
+    .dashboard-group-toggle.is-active{ background:#08752f; color:#fff; box-shadow:0 2px 7px rgba(8,117,47,.2); }
+    .dashboard-metric-toggle{
+      display:inline-flex;
+      flex-wrap:wrap;
+      gap:3px;
+      margin-left:auto;
+      padding:3px;
+      border:1px solid #bdd3dd;
+      border-radius:999px;
+      background:#eaf3f7;
+    }
+    .dashboard-metric-toggle button{
+      min-width:92px;
+      padding:8px 13px;
+      border:0;
+      border-radius:999px;
+      background:transparent;
+      color:#496675;
+      cursor:pointer;
+      font:inherit;
+      font-size:12px;
+      font-weight:900;
+    }
+    .dashboard-metric-toggle button.is-active{ background:#08752f; color:#fff; box-shadow:0 2px 7px rgba(8,117,47,.2); }
+    .dashboard-group-dialog{
+      width:min(720px, calc(100% - 32px));
+      padding:0;
+      border:0;
+      border-radius:18px;
+      color:var(--ink);
+      box-shadow:0 24px 70px rgba(12,39,53,.3);
+    }
+    .dashboard-group-dialog::backdrop{ background:rgba(10,32,44,.58); }
+    .dashboard-group-dialog form{ padding:24px; }
+    .dashboard-group-dialog h4{ margin:0 0 8px; font-size:24px; }
+    .dashboard-group-dialog p{ margin:0 0 18px; color:#5e7582; line-height:1.45; }
+    .dashboard-dialog-options{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:22px;
+    }
+    .dashboard-dialog-options label{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:11px 12px;
+      border:1px solid #d5e5ed;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:700;
+    }
+    .dashboard-dialog-options label:hover{ background:#f1f8fb; }
+    .dashboard-dialog-options input{ width:18px; height:18px; accent-color:#08752f; }
+    .dashboard-dialog-actions{ display:flex; justify-content:flex-end; gap:10px; }
+    .dashboard-dialog-actions button{
+      padding:10px 17px;
+      border:1px solid #bdd3dd;
+      border-radius:999px;
+      background:#fff;
+      color:var(--ink);
+      cursor:pointer;
+      font:inherit;
+      font-weight:800;
+    }
+    .dashboard-dialog-actions .dashboard-dialog-apply{ border-color:#08752f; background:#08752f; color:#fff; }
+    .dashboard-dialog-actions button:disabled{ opacity:.45; cursor:not-allowed; }
+    .dashboard-chart-stage{ display:grid; grid-template-columns:minmax(0, 1fr); gap:16px; }
+    .dashboard-chart-stage.has-vessel-picker{ grid-template-columns:minmax(0, 1fr) 280px; }
+    .dashboard-chart-stack{ display:grid; min-width:0; gap:24px; }
+    .dashboard-combined-chart{
+      min-width:0;
+      padding-top:18px;
+      border-top:1px solid #d5e5ed;
+    }
+    .dashboard-combined-chart[hidden]{ display:none; }
+    .dashboard-combined-chart h4{ margin:0 0 10px; color:var(--ink); font-size:17px; }
+    .dashboard-chart-wrap{ position:relative; height:470px; min-width:0; }
+    .dashboard-vessel-picker{
+      height:470px;
+      padding:15px;
+      overflow:hidden;
+      border:1px solid #d5e5ed;
+      border-radius:14px;
+      background:#f7fbfd;
+    }
+    .dashboard-vessel-picker h4{ margin:0 0 5px; font-size:17px; }
+    .dashboard-vessel-picker > p{ margin:0 0 12px; color:#5e7582; font-size:12px; line-height:1.4; }
+    .dashboard-vessel-actions{ display:flex; gap:7px; margin-bottom:9px; }
+    .dashboard-vessel-actions button{
+      flex:1;
+      padding:7px 8px;
+      border:1px solid #bdd3dd;
+      border-radius:8px;
+      background:#fff;
+      color:var(--ink);
+      cursor:pointer;
+      font:inherit;
+      font-size:11px;
+      font-weight:800;
+    }
+    .dashboard-vessel-actions button:hover{ background:#eaf4f8; }
+    .dashboard-vessel-search{
+      width:100%;
+      margin-bottom:10px;
+      padding:9px 11px;
+      border:1px solid #bdd3dd;
+      border-radius:9px;
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+    }
+    .dashboard-vessel-options{ display:grid; gap:5px; max-height:310px; overflow:auto; padding-right:3px; }
+    .dashboard-vessel-option{
+      display:grid;
+      grid-template-columns:auto 12px minmax(0, 1fr);
+      align-items:center;
+      gap:8px;
+      padding:7px 6px;
+      border-radius:7px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+    }
+    .dashboard-vessel-option[hidden]{ display:none; }
+    .dashboard-vessel-option:hover{ background:#eaf4f8; }
+    .dashboard-vessel-option input{ width:16px; height:16px; accent-color:#08752f; }
+    .dashboard-vessel-colour{ width:12px; height:12px; border-radius:50%; background:var(--vessel-colour); }
+    .dashboard-vessel-name{ overflow-wrap:anywhere; }
+    .dashboard-vessel-empty{ color:#5e7582; font-size:12px; }
+    .dashboard-timeline{
+      margin-top:24px;
+      padding:42px 18px 14px;
+      border:1px solid #d5e5ed;
+      border-radius:14px;
+      background:linear-gradient(180deg,#f8fbfd,#edf5f8);
+    }
+    .dashboard-timeline-rail{ position:relative; height:64px; }
+    .dashboard-timeline-track{
+      position:absolute;
+      top:27px;
+      right:0;
+      left:0;
+      height:8px;
+      border-radius:999px;
+      background:#c8dce5;
+      box-shadow:inset 0 1px 3px rgba(22,56,76,.18);
+    }
+    .dashboard-timeline-selection{
+      position:absolute;
+      top:27px;
+      height:8px;
+      border-radius:999px;
+      background:#08752f;
+      pointer-events:none;
+    }
+    .dashboard-timeline input[type="range"]{
+      position:absolute;
+      z-index:3;
+      top:17px;
+      left:0;
+      width:100%;
+      height:28px;
+      margin:0;
+      appearance:none;
+      background:transparent;
+      pointer-events:none;
+    }
+    .dashboard-timeline input[type="range"]::-webkit-slider-runnable-track{ height:8px; background:transparent; }
+    .dashboard-timeline input[type="range"]::-webkit-slider-thumb{
+      width:22px;
+      height:30px;
+      margin-top:-11px;
+      appearance:none;
+      border:3px solid #fff;
+      border-radius:8px;
+      background:#0b627f;
+      box-shadow:0 2px 7px rgba(22,56,76,.4);
+      cursor:ew-resize;
+      pointer-events:auto;
+    }
+    .dashboard-timeline input[type="range"]::-moz-range-track{ height:8px; background:transparent; }
+    .dashboard-timeline input[type="range"]::-moz-range-thumb{
+      width:18px;
+      height:26px;
+      border:3px solid #fff;
+      border-radius:8px;
+      background:#0b627f;
+      box-shadow:0 2px 7px rgba(22,56,76,.4);
+      cursor:ew-resize;
+      pointer-events:auto;
+    }
+    .dashboard-timeline-bubble{
+      position:absolute;
+      top:-35px;
+      width:86px;
+      padding:6px 3px;
+      transform:translateX(-50%);
+      border:0;
+      border-radius:8px;
+      background:#16384c;
+      color:#fff;
+      font-family:inherit;
+      font-size:10px;
+      font-weight:800;
+      text-align:center;
+      white-space:nowrap;
+    }
+    .dashboard-timeline-bubble:focus{
+      outline:3px solid rgba(11,98,127,.28);
+      outline-offset:2px;
+    }
+    .dashboard-timeline-months{ position:absolute; right:0; bottom:0; left:0; height:20px; pointer-events:none; }
+    .dashboard-timeline-month{
+      position:absolute;
+      transform:translateX(-50%);
+      color:#496675;
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .dashboard-status{ padding:28px; color:#5e7582; text-align:center; }
+    .dashboard-status.error{ color:#9d2727; }
+    .dashboard-source{ margin:18px 0 0; color:#5e7582; font-size:13px; line-height:1.55; }
+
+    @media(max-width:1100px){
+      .markets-page #markets-map{
+        height:clamp(500px, 66svh, 660px);
+      }
+
+      .dashboard-filters{ grid-template-columns:1fr 1fr; }
+      .dashboard-chart-stage.has-vessel-picker{ grid-template-columns:minmax(0, 1fr) 240px; }
+    }
+
+    @media(max-width:560px){
+      .markets-page .markets-map-shell{
+        padding:14px !important;
+      }
+
+      .markets-map-frame{
+        border-radius:18px;
+      }
+
+      .markets-page #markets-map{
+        height:clamp(460px, 64svh, 580px);
+      }
+
+      .delta-map-pin{
+        width:54px;
+        height:60px;
+        transform-origin:27px 58px;
+      }
+
+      .delta-map-logo{
+        width:54px;
+        height:54px;
+        background-position:center 26px;
+      }
+
+      .delta-map-pin::after{
+        top:46px;
+        border-top-width:12px;
+        border-right-width:8px;
+        border-left-width:8px;
+      }
+
+      .dashboard-heading{ align-items:flex-start; flex-direction:column; }
+      .dashboard-filters{ grid-template-columns:1fr; }
+      .dashboard-metric-toggle{ width:100%; margin-left:0; }
+      .dashboard-metric-toggle button{ flex:1; }
+      .dashboard-chart-wrap{ height:300px; }
+      .dashboard-chart-stage.has-vessel-picker{ grid-template-columns:1fr; }
+      .dashboard-vessel-picker{ height:auto; }
+      .dashboard-vessel-options{ max-height:240px; }
+
+      .leaflet-control-attribution{
+        max-width:78%;
+        font-size:9px !important;
+        line-height:1.2;
+      }
+    }
+
+    @media(prefers-reduced-motion:reduce){
+      .map-loading,
+      .delta-map-pin{
+        transition:none !important;
+      }
+    }
+    /* Fish graph only: retain the original Delta header and footer. */
+    .markets-headline,
+    .markets-buy-intro,
+    .markets-map-frame{ display:none !important; }
+    .markets-map-shell{ padding-top:32px; }
+    .fisheries-dashboard{ margin-top:0; }
+    .single-nav-title{
+      position:absolute;
+      left:calc(50% + 150px);
+      display:flex;
+      gap:38px;
+      align-items:center;
+    }
+    .single-nav-title a{
+      color:#000;
+      font-size:20px;
+      font-weight:700;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+    @media(max-width:780px){
+      .single-nav-title{ position:static; order:2; }
+    }
+  </style>
+  <link rel="stylesheet" href="language-switch.css?v=3">
+  <link rel="stylesheet" href="footer.css?v=16">
+  <link rel="stylesheet" href="mobile.css?v=16">
+  <link rel="stylesheet" href="site-header.css?v=1">
+</head>
+<body class="markets-page">
+  <a class="skip-link" href="#main-content">Skip to markets</a>
+
+  <nav class="navbar standard-header" aria-label="Primary navigation" data-aria-label-en="Primary navigation" data-aria-label-fo="Høvuðsvalmynd">
+    <a href="./" class="logo">
+      <img src="delta-bumerki.png" alt="Delta Seafood Logo">
+    </a>
+    <div class="site-nav-links"><a href="markets.html" aria-current="page">Teyggjan</a><a href="fmf.html">FMF</a></div>
+  </nav>
+
+  <main id="main-content" class="markets-map-shell">
+    <h1 class="markets-headline">Where we buy fish</h1>
+    <p class="markets-buy-intro" id="markets-buy-intro">We are interested in buying both fresh and frozen fish. We produce high-quality seafood products from trawl, long liners, and gillnets. For more information, contact <a href="contact.html#magnus-jespersen">Magnus Jespersen</a>.</p>
+    <div class="markets-map-frame">
+      <div id="markets-map" role="region" aria-label="Interactive map of Delta Seafood purchasing locations" data-aria-label-en="Interactive map of Delta Seafood purchasing locations" data-aria-label-fo="Samvirkið kort yvir innkeypsstøð hjá Delta Seafood"></div>
+      <p class="map-loading" id="map-status" role="status">Loading world map…</p>
+    </div>
+
+    <section class="fisheries-dashboard" aria-labelledby="dashboard-title">
+      <header class="dashboard-heading">
+        <div>
+          <p class="dashboard-eyebrow" id="dashboard-eyebrow">Market intelligence</p>
+          <h2 id="dashboard-title">Fisheries landings dashboard in the Faroe Islands</h2>
+          <p id="dashboard-intro">Explore daily reported landing volume and weighted sales value per kilogram by species and ship group.</p>
+        </div>
+        <div class="dashboard-updated" id="updated">Loading latest data…</div>
+      </header>
+
+      <div class="dashboard-panel dashboard-filters" aria-label="Dashboard filters" hidden>
+        <div class="dashboard-filter-field">
+          <span id="ship-group-label">Ship group</span>
+          <details class="dashboard-filter-menu">
+            <summary id="ship-group-summary">All ship groups</summary>
+            <div class="dashboard-checkboxes" id="ship-group-options">
+              <button class="dashboard-deselect-all" id="ship-group-deselect" type="button">Deselect all</button>
+            </div>
+          </details>
+        </div>
+        <label><span id="graph-metric-label">Graph measure</span>
+          <select id="graph-metric">
+            <option id="quantity-option" value="quantity">Amount landed (kg)</option>
+            <option id="price-option" value="price">Weighted average price (DKK/kg)</option>
+            <option id="combined-option" value="combined">Kilos and average price</option>
+            <option id="total-option" value="total">Period total</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="status" class="dashboard-status">Loading fisheries data…</div>
+      <div id="dashboard" hidden>
+        <div class="dashboard-charts">
+          <article class="dashboard-chart-card">
+            <h3 id="graph-title">Daily amount landed by species</h3>
+            <p id="graph-description">Choose species below. Your first click shows only that species; later clicks add or remove species. Click a line to focus it, then hover to see vessel details.</p>
+            <div class="dashboard-species-selector" id="species-selector" aria-label="Choose species"></div>
+            <div class="dashboard-line-controls" aria-label="Line detail options">
+              <button class="dashboard-group-toggle" id="split-groups" type="button" aria-pressed="false"><span id="split-groups-label">Ship groups</span></button>
+              <label><input id="split-vessels" type="checkbox"><span id="split-vessels-label">Show each vessel as its own line</span></label>
+              <div class="dashboard-metric-toggle" id="metric-toggle" role="group" aria-label="Graph measure">
+                <button id="metric-quantity" type="button" data-metric="quantity">Kilos</button>
+                <button id="metric-price" type="button" data-metric="price">Average price</button>
+                <button id="metric-combined" type="button" data-metric="combined">Kilos + average price</button>
+                <button id="metric-total" type="button" data-metric="total">Period total</button>
+              </div>
+            </div>
+            <dialog class="dashboard-group-dialog" id="group-line-dialog" aria-labelledby="group-dialog-title" aria-describedby="group-dialog-description">
+              <form method="dialog">
+                <h4 id="group-dialog-title">Choose ship groups</h4>
+                <p id="group-dialog-description">Select the ship groups that should have their own lines.</p>
+                <div class="dashboard-vessel-actions">
+                  <button id="group-dialog-select-all" type="button">Select all</button>
+                  <button id="group-dialog-deselect-all" type="button">Deselect all</button>
+                </div>
+                <div class="dashboard-dialog-options" id="group-line-options"></div>
+                <div class="dashboard-dialog-actions">
+                  <button id="group-dialog-cancel" value="cancel">Cancel</button>
+                  <button class="dashboard-dialog-apply" id="group-dialog-apply" type="button">Show selected groups</button>
+                </div>
+              </form>
+            </dialog>
+            <div class="dashboard-chart-stage" id="chart-stage">
+              <div class="dashboard-chart-stack">
+                <div class="dashboard-chart-wrap"><canvas id="quantity-chart"></canvas></div>
+                <div class="dashboard-combined-chart" id="combined-price-chart" hidden>
+                  <h4 id="combined-price-title">Average price</h4>
+                  <div class="dashboard-chart-wrap"><canvas id="price-chart"></canvas></div>
+                </div>
+              </div>
+              <aside class="dashboard-vessel-picker" id="vessel-picker" hidden>
+                <h4 id="vessel-picker-title">Choose vessels</h4>
+                <p id="vessel-picker-description">Search and add vessels to the graph. Each colour matches its line.</p>
+                <div class="dashboard-vessel-actions">
+                  <button id="vessel-select-all" type="button">Select all</button>
+                  <button id="vessel-deselect-all" type="button">Deselect all</button>
+                </div>
+                <input class="dashboard-vessel-search" id="vessel-search" type="search" placeholder="Search vessels" autocomplete="off">
+                <div class="dashboard-vessel-options" id="vessel-options"></div>
+              </aside>
+            </div>
+            <div class="dashboard-timeline" id="dashboard-timeline" aria-label="Graph date range">
+              <input id="date-from" type="hidden">
+              <input id="date-to" type="hidden">
+              <div class="dashboard-timeline-rail">
+                <div class="dashboard-timeline-track"></div>
+                <div class="dashboard-timeline-selection" id="timeline-selection"></div>
+                <input class="dashboard-timeline-bubble" id="timeline-from-label" type="text" inputmode="numeric" aria-label="Start date" autocomplete="off" spellcheck="false">
+                <input class="dashboard-timeline-bubble" id="timeline-to-label" type="text" inputmode="numeric" aria-label="End date" autocomplete="off" spellcheck="false">
+                <input id="timeline-from" type="range" aria-label="Start date">
+                <input id="timeline-to" type="range" aria-label="End date">
+                <div class="dashboard-timeline-months" id="timeline-months"></div>
+              </div>
+            </div>
+          </article>
+        </div>
+        <p class="dashboard-source" id="dashboard-source">Source: Vørn public landing reports. Quantity can represent processed product weight. DKK/kg is a weighted reported sales value and is not necessarily an auction price for a uniform product.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-wrapper">
+      <div class="footer-logo">
+        <img src="delta-bumerki.png" alt="Delta Seafood Logo">
+      </div>
+
+      <div class="footer-feature-grid">
+        <div class="footer-column">
+          <h4>Contact</h4>
+          <div class="footer-contact-entry"><strong>Delta Seafood</strong><a href="mailto:Deltaseafood@deltaseafood.fo">Deltaseafood@deltaseafood.fo</a><span>Telephone +298 208800</span><span>Havnalagið 25, 800 Tvøroyri</span><span>Reg no: 2468</span><span>VAT no.: 448486</span></div>
+          <div class="footer-contact-entry"><strong>TG Seafood</strong><a href="mailto:tgseafood@tgseafood.fo">tgseafood@tgseafood.fo</a><span>Telephone +298 208800</span><span>Á Hamranesi 10, 850 Hvalba</span><span>Reg no: 3670</span><span>VAT no.: 532908</span></div>
+
+          <h4>Address</h4>
+          <div class="footer-address-grid">
+            <div><p>Delta Seafood</p><p>Havnalagið 25</p><p>800 Tvøroyri</p></div>
+            <div><p>TG Seafood</p><p>Á Hamranesi 10</p><p>850 Hvalba</p></div>
+          </div>
+        </div>
+
+        <div class="footer-column footer-image-column">
+          <img src="salted-cod.png" alt="Salted cod">
+        </div>
+
+        <div class="footer-column">
+          <h4>Registration Delta Seafood</h4>
+          <p>Registration no: 2468</p>
+          <p>VAT no.: 448486</p>
+          <h4>Registration TG Seafood</h4>
+          <p>Registration no: 3670</p>
+          <p>VAT no.: 532908</p>
+        </div>
+
+        <div class="footer-column footer-msc">
+          <div class="footer-msc-frame">
+            <img src="msc.svg" alt="MSC Certification">
+            <p>Certified sustainable by MSC for responsible seafood sourcing.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">Delta Seafood © 2026. All rights reserved.</div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+  <script src="footer.js?v=1"></script>
+  <script src="page-translations.js?v=45"></script>
+  <script src="language-switch.js?v=12"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script>
+    (function(){
+      const shell = document.querySelector(".markets-map-shell");
+      const mapElement = document.getElementById("markets-map");
+      const status = document.getElementById("map-status");
+      const isSelling = new URLSearchParams(window.location.search).get("view") === "selling";
+      const headline = document.querySelector(".markets-headline");
+      const buyingIntro = document.getElementById("markets-buy-intro");
+      const dashboardSection = document.querySelector(".fisheries-dashboard");
+      const isFaroese = document.documentElement.lang === "fo";
+      const copy = isFaroese
+        ? {
+            faroeWaters:"Føroyskur sjógvur",
+            denmarkWaters:"Danskur sjógvur",
+            norwayWaters:"Norskur sjógvur",
+            greenlandWaters:"Grønlendskur sjógvur",
+            canadianWaters:"Kanadiskur sjógvur",
+            icelandWaters:"Íslendskur sjógvur",
+            euWaters:"ES-sjógvur",
+            flemishCap:"Flemish Cap",
+            russianWaters:"Russiskur sjógvur",
+            spain:"Spanien",
+            france:"Frakland",
+            portugal:"Portugal",
+            italy:"Italien",
+            greece:"Grikkaland",
+            turkey:"Turkaland",
+            norway:"Noregi",
+            denmark:"Danmark",
+            china:"Kina",
+            canada:"Canada",
+            netherlands:"Holland",
+            belgium:"Belgien",
+            germany:"Týskland",
+            usa:"USA",
+            loading:"Heimskortið verður tikið inn…",
+            error:"Kortið kundi ikki takast inn. Royn aftur um eina løtu.",
+            zoomIn:"Suma inn",
+            zoomOut:"Suma út"
+          }
+        : {
+            faroeWaters:"Faroese waters",
+            denmarkWaters:"Danish waters",
+            norwayWaters:"Norwegian waters",
+            greenlandWaters:"Greenland waters",
+            canadianWaters:"Canadian waters",
+            icelandWaters:"Icelandic waters",
+            euWaters:"EU waters",
+            flemishCap:"Flemish Cap",
+            russianWaters:"Russian waters",
+            spain:"Spain",
+            france:"France",
+            portugal:"Portugal",
+            italy:"Italy",
+            greece:"Greece",
+            turkey:"Turkey",
+            norway:"Norway",
+            denmark:"Denmark",
+            china:"China",
+            canada:"Canada",
+            netherlands:"Netherlands",
+            belgium:"Belgium",
+            germany:"Germany",
+            usa:"USA",
+            loading:"Loading world map…",
+            error:"The map could not be loaded. Please try again shortly.",
+            zoomIn:"Zoom in",
+            zoomOut:"Zoom out"
+          };
+
+      status.textContent = copy.loading;
+
+      if(isSelling){
+        headline.textContent = isFaroese
+          ? "Hesi eru londini, sum vit hava útflutt fisk til"
+          : "These are the countries which we have exported fish to";
+        mapElement.setAttribute("aria-label", isFaroese
+          ? "Samvirkið heimskort yvir sølumarknaðir hjá Delta Seafood"
+          : "Interactive world map of Delta Seafood export markets");
+        if(dashboardSection) dashboardSection.style.display = "none";
+        if(buyingIntro) buyingIntro.style.display = "none";
+        document.querySelectorAll('.markets-nav-item a').forEach(link => link.removeAttribute('aria-current'));
+        const sellingLink = document.querySelector('.markets-nav-item a[href="markets.html?view=selling"]');
+        if(sellingLink) sellingLink.setAttribute('aria-current', 'page');
+      }
+
+      if(!window.L){
+        status.textContent = copy.error;
+        shell.classList.add("map-error");
+        return;
+      }
+
+      const COUNTRY_VIEW_ZOOM = 2.5;
+      const worldBounds = L.latLngBounds([[-85, -190], [85, 190]]);
+      const map = L.map(mapElement, {
+        zoomControl:false,
+        zoomSnap:0,
+        zoomDelta:1,
+        minZoom:0,
+        maxZoom:10,
+        maxBoundsViscosity:.75,
+        scrollWheelZoom:true,
+        wheelPxPerZoomLevel:28,
+        wheelDebounceTime:15,
+        touchZoom:true,
+        bounceAtZoomLimits:false,
+        worldCopyJump:false,
+        preferCanvas:true
+      });
+
+      const baseGetScaleZoom = map.getScaleZoom.bind(map);
+      map.getScaleZoom = function(scale, fromZoom){
+        const boostedScale = map.touchZoom && map.touchZoom._moving
+          ? Math.pow(scale, 1.65)
+          : scale;
+        return baseGetScaleZoom(boostedScale, fromZoom);
+      };
+
+      mapElement.addEventListener("wheel", event => {
+        if(event.ctrlKey && map.scrollWheelZoom){
+          map.scrollWheelZoom._delta += L.DomEvent.getWheelDelta(event) * 2.2;
+        }
+      }, { capture:true, passive:true });
+
+      L.control.zoom({
+        position:"topright",
+        zoomInTitle:copy.zoomIn,
+        zoomOutTitle:copy.zoomOut
+      }).addTo(map);
+
+      const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        minZoom:0,
+        maxZoom:10,
+        noWrap:true,
+        updateWhenIdle:true,
+        keepBuffer:2,
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' + (isSelling ? '' : ' | EEZ: <a href="https://www.marineregions.org/">Marine Regions / VLIZ</a> (CC BY 4.0)')
+      }).addTo(map);
+
+      function markMapReady(){
+        shell.classList.add("map-ready");
+      }
+
+      tileLayer.once("load", markMapReady);
+      window.setTimeout(markMapReady, 2500);
+
+      const buyingLocations = [
+        { id:"greenland-waters", label:copy.greenlandWaters, codPoints:[[59.5,-49],[61.5,-54],[63.5,-58],[65.5,-61],[67.5,-62],[69.5,-61],[72,-63],[74.5,-67],[77,-72],[79,-72],[77,-12],[74.5,-12],[72,-13],[69.5,-15],[67,-20],[64.5,-29],[62,-35]] },
+        { id:"canadian-waters", label:copy.canadianWaters, codPoints:[[43,-57],[44.5,-54],[46,-51],[47.5,-48],[49,-46],[51,-46],[53,-49],[55,-51],[57,-53],[59,-54],[61,-55],[63,-54],[65,-52],[58,-85],[61,-86],[63,-88],[70,-62],[72,-65],[74,-68],[76,-70],[78,-72],[71,-135],[73,-140],[74,-130],[80,-110],[82,-100],[81,-90]] },
+        { id:"eu-waters", label:copy.euWaters, codPoints:[[42,-13],[43.5,-14],[45,-13],[46.5,-12],[48,-11],[49.5,-12],[51,-14],[53,-15],[55,-15],[57,-14]] },
+        { id:"norway-waters", label:copy.norwayWaters, codPoints:[[58.5,-1],[60.5,-2],[62.5,0],[64.5,2],[66.5,5],[68,8],[69.5,11],[71,14],[72.5,20],[74,25],[75.5,12],[76.5,7],[78,5],[80,7],[81.5,18],[80.5,32],[78.5,36],[76.5,30]] },
+        { id:"russian-waters", label:copy.russianWaters, codPoints:[[70.5,31],[72,35],[73.5,40],[75,45],[76.5,50],[78,55],[79,65],[83,53],[82.5,40],[80,37],[76,28],[78,32],[80,28],[81,40],[80,68],[77,75],[79,82],[81,90],[74,82]] },
+        { id:"iceland-waters", label:copy.icelandWaters, codPoints:[[62.2,-20],[62.8,-25.5],[64.8,-29],[67,-27.5],[68.3,-21],[68,-15],[65.5,-11],[62.8,-14]] },
+        { id:"denmark-waters", label:copy.denmarkWaters, codPoints:[[56,6]] },
+        { id:"faroe-waters", label:copy.faroeWaters, codPoints:[[60,-12],[63,-6]] },
+        { id:"flemish-cap", label:copy.flemishCap, codPoints:[[46.5,-46],[47.5,-44.5]] }
+      ];
+
+      const sellingLocations = [
+        {
+          id:"europe",
+          label:isFaroese ? "Evropa" : "Europe",
+          coordinates:[50.0, 10.0],
+          targetCoordinates:[50.0, 10.0],
+          targetZoom:3,
+          countries:[
+            { label:copy.spain, coordinates:[40.4168, -3.7038] },
+            { label:copy.france, coordinates:[48.8566, 2.3522] },
+            { label:copy.portugal, coordinates:[38.7223, -9.1393] },
+            { label:copy.italy, coordinates:[41.9028, 12.4964] },
+            { label:copy.greece, coordinates:[37.9838, 23.7275] },
+            { label:copy.turkey, coordinates:[39.9334, 32.8597] },
+            { label:copy.norway, coordinates:[59.9139, 10.7522] },
+            { label:copy.denmark, coordinates:[55.6761, 12.5683] },
+            { label:copy.netherlands, coordinates:[52.3676, 4.9041] },
+            { label:copy.belgium, coordinates:[50.8503, 4.3517] },
+            { label:copy.germany, coordinates:[52.5200, 13.4050] }
+          ]
+        },
+        {
+          id:"north-america",
+          label:isFaroese ? "Norðuramerika" : "North America",
+          coordinates:[39.8283, -98.5795],
+          targetCoordinates:[39.8283, -98.5795],
+          targetZoom:4,
+          countries:[
+            { label:copy.usa, coordinates:[39.8283, -98.5795] },
+            { label:copy.canada, coordinates:[56.1304, -106.3468] }
+          ]
+        },
+        {
+          id:"asia",
+          label:"Asia",
+          coordinates:[35.8617, 104.1954],
+          targetCoordinates:[35.8617, 104.1954],
+          targetZoom:4,
+          countries:[{ label:copy.china, coordinates:[39.9042, 116.4074] }]
+        }
+      ];
+
+      const continents = isSelling ? sellingLocations : buyingLocations;
+
+      function createDeltaPin(){
+        if(isSelling){
+          return L.divIcon({
+            className:"delta-leaflet-icon",
+            html:`<span class="delta-map-pin" aria-hidden="true"><span class="delta-map-logo"></span></span>`,
+            iconSize:[68, 74],
+            iconAnchor:[34, 72],
+            tooltipAnchor:[0, -54]
+          });
+        }
+        return L.divIcon({
+          className:"delta-leaflet-icon",
+          html:`<span class="buy-map-marker" aria-hidden="true"><img class="buy-map-cod" src="cod.png" alt=""><span class="buy-map-arrow"></span></span>`,
+          iconSize:[60, 74],
+          iconAnchor:[30, 72],
+          tooltipAnchor:[0, -64]
+        });
+      }
+
+      const continentLayer = L.layerGroup();
+      const countryLayer = L.layerGroup();
+
+      function setCountryView(showCountries){
+        mapElement.classList.toggle("is-country-view", showCountries);
+        mapElement.classList.toggle("is-continent-view", !showCountries);
+
+        if(!isSelling){
+          if(map.hasLayer(countryLayer)) map.removeLayer(countryLayer);
+          if(!map.hasLayer(continentLayer)) continentLayer.addTo(map);
+          return;
+        }
+
+        if(showCountries){
+          if(map.hasLayer(continentLayer)) map.removeLayer(continentLayer);
+          if(!map.hasLayer(countryLayer)) countryLayer.addTo(map);
+        } else {
+          if(map.hasLayer(countryLayer)) map.removeLayer(countryLayer);
+          if(!map.hasLayer(continentLayer)) continentLayer.addTo(map);
+        }
+      }
+
+      if(isSelling) continents.forEach(continent => {
+        const continentMarker = L.marker(continent.coordinates, {
+          icon:createDeltaPin(),
+          keyboard:true,
+          riseOnHover:true,
+          title:continent.label,
+          alt:continent.label
+        }).addTo(continentLayer);
+
+        continentMarker.bindTooltip(continent.label, {
+          className:"country-tooltip",
+          direction:"top",
+          opacity:1
+        });
+
+        continentMarker.on("click", () => {
+          setCountryView(true);
+           const targetZoom = Math.min(10, Math.max(COUNTRY_VIEW_ZOOM, continent.targetZoom, map.getZoom() + 1));
+          map.flyTo(continent.targetCoordinates, targetZoom, { duration:.75 });
+        });
+
+        continent.countries.forEach(country => {
+          const countryMarker = L.marker(country.coordinates, {
+            icon:createDeltaPin(),
+            keyboard:true,
+            riseOnHover:true,
+            title:country.label,
+            alt:country.label
+          }).addTo(countryLayer);
+
+          countryMarker.bindTooltip(country.label, {
+            className:"country-tooltip",
+            direction:"top",
+            opacity:1
+          });
+
+          countryMarker.on("click", () => {
+            const targetZoom = Math.min(10, Math.max(8, map.getZoom() + 2));
+            map.flyTo(country.coordinates, targetZoom, { duration:.75 });
+          });
+        });
+      });
+      else {
+        const waterStyle={color:"#08752f",weight:1.25,opacity:.72,fillColor:"#35a86b",fillOpacity:.08};
+        const waterHoverStyle={color:"#075f2a",weight:2.5,opacity:1,fillColor:"#35a86b",fillOpacity:.24};
+        const codIcon=L.divIcon({
+          className:"buy-area-cod-icon",
+          html:'<img class="buy-area-cod" src="cod.png" alt="">',
+          iconSize:[26,19],
+          iconAnchor:[13,9]
+        });
+
+        const areaById=new Map(buyingLocations.map(area=>[area.id,area]));
+        const layersByArea=new Map();
+        const setAreaStyle=(areaId,style)=>(layersByArea.get(areaId)||[]).forEach(layer=>layer.setStyle(style));
+        const pointInRing=(point,ring)=>{
+          let inside=false;
+          for(let index=0,previous=ring.length-1;index<ring.length;previous=index++){
+            const currentPoint=ring[index];
+            const previousPoint=ring[previous];
+            const crosses=(currentPoint[1]>point[1])!==(previousPoint[1]>point[1]);
+            const crossingLongitude=(previousPoint[0]-currentPoint[0])*(point[1]-currentPoint[1])/(previousPoint[1]-currentPoint[1])+currentPoint[0];
+            if(crosses&&point[0]<crossingLongitude) inside=!inside;
+          }
+          return inside;
+        };
+        const pointInPolygon=(point,polygon)=>pointInRing(point,polygon[0])&&!polygon.slice(1).some(hole=>pointInRing(point,hole));
+        const pointInGeometry=(coordinates,geometry)=>{
+          const point=[coordinates[1],coordinates[0]];
+          if(geometry.type==="Polygon") return pointInPolygon(point,geometry.coordinates);
+          if(geometry.type==="MultiPolygon") return geometry.coordinates.some(polygon=>pointInPolygon(point,polygon));
+          return false;
+        };
+        fetch("data/buying-eez.geojson",{cache:"no-store"})
+          .then(response=>{
+            if(!response.ok) throw new Error(`EEZ data request failed (${response.status})`);
+            return response.json();
+          })
+          .then(data=>{
+            const featuresByArea=new Map();
+            data.features.forEach(feature=>{
+              const areaId=feature.properties.market;
+              if(!featuresByArea.has(areaId)) featuresByArea.set(areaId,[]);
+              featuresByArea.get(areaId).push(feature);
+            });
+            buyingLocations.forEach(area=>{
+              if(area.id==="flemish-cap") return;
+              const matchingFeatures=featuresByArea.get(area.id)||[];
+              area.codPoints
+                .filter(coordinates=>matchingFeatures.some(feature=>pointInGeometry(coordinates,feature.geometry)))
+                .forEach(coordinates=>L.marker(coordinates,{icon:codIcon,interactive:false,keyboard:false}).addTo(continentLayer));
+            });
+            const eezLayer=L.geoJSON(data,{
+              style:waterStyle,
+              onEachFeature:(feature,layer)=>{
+                const areaId=feature.properties.market;
+                const area=areaById.get(areaId);
+                if(!area) return;
+                if(!layersByArea.has(areaId)) layersByArea.set(areaId,[]);
+                layersByArea.get(areaId).push(layer);
+                layer.bindTooltip(area.label,{className:"country-tooltip",sticky:true,opacity:1});
+                layer.on("mouseover",()=>setAreaStyle(areaId,waterHoverStyle));
+                layer.on("mouseout",()=>setAreaStyle(areaId,waterStyle));
+                layer.on("click",()=>{
+                  const group=L.featureGroup(layersByArea.get(areaId));
+                  map.fitBounds(group.getBounds(),{padding:[36,36],maxZoom:5,animate:true,duration:.65});
+                });
+              }
+            }).addTo(continentLayer);
+            if(eezLayer.getBounds().isValid()){
+              map.setMinZoom(Math.max(0,map.getZoom()-.25));
+              updateMapMode();
+            }
+          })
+          .catch(error=>console.error("Could not load official EEZ boundaries:",error));
+
+        const flemishCap=L.polygon([[45.5,-47.5],[48.5,-47.5],[48.5,-42],[45.5,-42]],{
+          ...waterStyle,dashArray:"5 5"
+        }).addTo(continentLayer);
+        flemishCap.bindTooltip(copy.flemishCap,{className:"country-tooltip",sticky:true,opacity:1});
+        flemishCap.on("mouseover",()=>flemishCap.setStyle({...waterHoverStyle,dashArray:"5 5"}));
+        flemishCap.on("mouseout",()=>flemishCap.setStyle({...waterStyle,dashArray:"5 5"}));
+        flemishCap.on("click",()=>map.fitBounds(flemishCap.getBounds(),{padding:[36,36],maxZoom:5,animate:true,duration:.65}));
+        areaById.get("flemish-cap").codPoints.forEach(coordinates=>{
+          if(flemishCap.getBounds().contains(coordinates)) L.marker(coordinates,{icon:codIcon,interactive:false,keyboard:false}).addTo(continentLayer);
+        });
+      }
+
+      function updateMapMode(){
+        setCountryView(map.getZoom() >= COUNTRY_VIEW_ZOOM);
+        const worldPixelHeight = 256 * Math.pow(2, map.getZoom());
+        const shouldLockBounds = worldPixelHeight > mapElement.clientHeight * 1.05;
+        map.setMaxBounds(shouldLockBounds ? worldBounds : null);
+      }
+
+      map.on("zoom", () => {
+        setCountryView(map.getZoom() >= COUNTRY_VIEW_ZOOM);
+      });
+      map.on("zoomend resize", updateMapMode);
+
+      requestAnimationFrame(() => {
+        map.invalidateSize();
+        if(isSelling) map.fitWorld({ animate:false });
+        else {
+          const buyingBounds=L.latLngBounds(
+            buyingLocations.flatMap(area=>area.codPoints)
+          );
+          map.fitBounds(buyingBounds,{padding:[28,28],animate:false});
+        }
+        map.setMinZoom(Math.max(0, map.getZoom() - .25));
+        updateMapMode();
+      });
+    })();
+  </script>
+  <script>
+    if(new URLSearchParams(window.location.search).get("view") !== "selling"){
+      const dashboardScript = document.createElement("script");
+      dashboardScript.src = "fisheries-dashboard.js?v=26";
+      document.body.appendChild(dashboardScript);
+
+      window.addEventListener("delta-language-change", () => {
+        window.location.reload();
+      });
+    }
+  </script>
+</body>
+</html>
