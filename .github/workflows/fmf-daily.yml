@@ -63,6 +63,19 @@ jobs:
           done
           exit 1
 
+      - name: Refresh Norwegian landing history
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            python norway_collector.py --out data/norway/norway-landings.json && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Norway collection attempt $attempt failed; retrying in 60 seconds."
+              sleep 60
+            fi
+          done
+          exit 1
+
       - name: Collect latest Vørn fisheries landings
         if: github.event_name != 'push'
         shell: bash
@@ -90,7 +103,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/fmf data/fisheries-dashboard.json data/vessels data/hanstholm
+          git add data/fmf data/fisheries-dashboard.json data/vessels data/hanstholm data/norway
           if git diff --cached --quiet; then
             echo "Fisheries data is already current."
           else

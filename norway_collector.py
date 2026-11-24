@@ -8,7 +8,6 @@ import datetime as dt
 import io
 import json
 import logging
-import shutil
 import sys
 import tempfile
 import zipfile
@@ -29,7 +28,7 @@ LOG = logging.getLogger("norway")
 URL_TEMPLATE = "https://register.fiskeridir.no/uttrekk/fangstdata_{year}.csv.zip"
 SOURCE = "https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-yrkesfiske/apne-data-fangstdata-seddel-koblet-med-fartoydata"
 USER_AGENT = "DeltaSeafoodNorwayCollector/1.0 (public open-data aggregation; daily fetch)"
-FIELDS = ["date", "species", "quantity_kg"]
+FIELDS = ["date", "species", "quantity_kg", "catch_year"]
 SPECIES = {
     "BLI": "Blálonga",
     "USK": "Brosma",
@@ -90,12 +89,12 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                                 day = dt.date.fromisoformat(raw_date[:10])
                             except ValueError as exc:
                                 raise ValueError(f"Unexpected landing date: {raw_date!r}") from exc
-                        if day.year != year:
+                        if day < dt.date(2020, 1, 1):
                             continue
                         totals[(day.isoformat(), species)] += number(row["Rundvekt"])
     if not totals:
         raise ValueError(f"No selected species found in official file for {year}")
-    rows = [[day, species, round(kg, 3)] for (day, species), kg in sorted(totals.items()) if kg > 0]
+    rows = [[day, species, round(kg, 3), year] for (day, species), kg in sorted(totals.items()) if kg > 0]
     LOG.info("%s: %s daily species totals", year, len(rows))
     return rows
 
@@ -104,6 +103,9 @@ def load_existing(path: Path) -> dict:
     if not path.exists():
         return {"rows": []}
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("fields") == ["date", "species", "quantity_kg"]:
+        payload["rows"] = [row + [int(row[0][:4])] for row in payload.get("rows", [])]
+        payload["fields"] = FIELDS
     if payload.get("fields") != FIELDS:
         raise ValueError("Existing Norway dataset has an unexpected schema")
     return payload
@@ -122,7 +124,7 @@ def main(argv=None) -> int:
     destination = Path(args.out)
     existing = load_existing(destination)
     refreshed_years = set(range(args.start_year, args.end_year + 1))
-    retained = [row for row in existing.get("rows", []) if int(row[0][:4]) not in refreshed_years]
+    retained = [row for row in existing.get("rows", []) if int(row[3]) not in refreshed_years]
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/zip"})
     collected: list[list] = []
