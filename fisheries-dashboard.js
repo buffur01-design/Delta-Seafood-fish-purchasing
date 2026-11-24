@@ -184,6 +184,11 @@
   const defaultSpecies = ["Toskur","Upsi","Hýsa","Svartkalvi","Longa","Brosma"];
   const defaultSpeciesSet = new Set(defaultSpecies);
   const excludedSpecies = new Set([
+    "Haválur",
+    "Lálla",
+    "Lýrur",
+    "Skrubba",
+    "Skøturavar",
     "Steinbítur",
     "Stinglaksur",
     "Krabbi",
