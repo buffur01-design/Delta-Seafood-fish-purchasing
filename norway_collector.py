@@ -28,7 +28,7 @@ LOG = logging.getLogger("norway")
 URL_TEMPLATE = "https://register.fiskeridir.no/uttrekk/fangstdata_{year}.csv.zip"
 SOURCE = "https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-yrkesfiske/apne-data-fangstdata-seddel-koblet-med-fartoydata"
 USER_AGENT = "DeltaSeafoodNorwayCollector/1.0 (public open-data aggregation; daily fetch)"
-FIELDS = ["date", "species", "quantity_kg", "catch_year"]
+FIELDS = ["date", "species", "size_group", "quantity_kg", "catch_year"]
 SPECIES = {
     "BLI": "Blálonga",
     "USK": "Brosma",
@@ -57,6 +57,24 @@ def number(value: str) -> float:
         raise ValueError(f"Unexpected numeric value: {value!r}") from exc
 
 
+def size_group(value: str) -> str:
+    """Decode Fiskeridirektoratet's seven-digit commercial size code."""
+    code = (value or "").strip()
+    if not code or code.startswith("3"):
+        return "Ikki upplýst"
+    if len(code) != 7 or not code.isdigit():
+        return code
+    method, lower, upper = code[0], int(code[1:4]), int(code[4:])
+    unit = {"1": "stk./kg", "2": "mm", "4": "hg", "7": "g", "8": "m", "9": "kg"}.get(method)
+    if not unit:
+        return code
+    if lower == upper:
+        return f"{lower} {unit}"
+    if upper in (0, 999):
+        return f"{lower}+ {unit}"
+    return f"{lower}–{upper} {unit}"
+
+
 def collect_year(year: int, session: requests.Session) -> list[list]:
     url = URL_TEMPLATE.format(year=year)
     LOG.info("Downloading %s", url)
@@ -71,10 +89,10 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                 names = [name for name in zipped.namelist() if name.lower().endswith(".csv")]
                 if len(names) != 1:
                     raise ValueError(f"Expected one CSV in {url}, found {names}")
-                totals: dict[tuple[str, str], float] = defaultdict(float)
+                totals: dict[tuple[str, str, str], float] = defaultdict(float)
                 with zipped.open(names[0]) as raw:
                     reader = csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""), delimiter=";")
-                    required = {"Landingsdato", "Art FAO (kode)", "Rundvekt"}
+                    required = {"Landingsdato", "Art FAO (kode)", "Størrelsesgruppering (kode)", "Rundvekt"}
                     if not reader.fieldnames or not required.issubset(reader.fieldnames):
                         raise ValueError(f"Unexpected Norwegian CSV schema; missing {required - set(reader.fieldnames or [])}")
                     for row in reader:
@@ -91,24 +109,24 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                                 raise ValueError(f"Unexpected landing date: {raw_date!r}") from exc
                         if day < dt.date(2020, 1, 1):
                             continue
-                        totals[(day.isoformat(), species)] += number(row["Rundvekt"])
+                        group = size_group(row["Størrelsesgruppering (kode)"])
+                        totals[(day.isoformat(), species, group)] += number(row["Rundvekt"])
     if not totals:
         raise ValueError(f"No selected species found in official file for {year}")
-    rows = [[day, species, round(kg, 3), year] for (day, species), kg in sorted(totals.items()) if kg > 0]
+    rows = [[day, species, group, round(kg, 3), year] for (day, species, group), kg in sorted(totals.items()) if kg > 0]
     LOG.info("%s: %s daily species totals", year, len(rows))
     return rows
 
 
-def load_existing(path: Path) -> dict:
+def load_existing(path: Path) -> tuple[dict, bool]:
     if not path.exists():
-        return {"rows": []}
+        return {"rows": []}, False
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("fields") == ["date", "species", "quantity_kg"]:
-        payload["rows"] = [row + [int(row[0][:4])] for row in payload.get("rows", [])]
-        payload["fields"] = FIELDS
+    if payload.get("fields") in (["date", "species", "quantity_kg"], ["date", "species", "quantity_kg", "catch_year"]):
+        return {"rows": []}, True
     if payload.get("fields") != FIELDS:
         raise ValueError("Existing Norway dataset has an unexpected schema")
-    return payload
+    return payload, False
 
 
 def main(argv=None) -> int:
@@ -123,9 +141,12 @@ def main(argv=None) -> int:
         parser.error("Invalid year range")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     destination = Path(args.out)
-    existing = load_existing(destination)
-    refreshed_years = set() if args.export_only else set(range(args.start_year, args.end_year + 1))
-    retained = [row for row in existing.get("rows", []) if int(row[3]) not in refreshed_years]
+    existing, needs_full_rebuild = load_existing(destination)
+    if args.export_only and needs_full_rebuild:
+        raise ValueError("The Norway dataset must be downloaded again to add size groups")
+    first_year = 2020 if needs_full_rebuild else args.start_year
+    refreshed_years = set() if args.export_only else set(range(first_year, args.end_year + 1))
+    retained = [row for row in existing.get("rows", []) if int(row[4]) not in refreshed_years]
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/zip"})
     collected: list[list] = []
@@ -133,7 +154,7 @@ def main(argv=None) -> int:
         collected.extend(collect_year(year, session))
     rows = sorted(retained + collected, key=lambda row: (row[0], row[1]))
     payload = {
-        "version": 1,
+        "version": 2,
         "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "source": SOURCE,
         "fields": FIELDS,
@@ -149,7 +170,7 @@ def main(argv=None) -> int:
     maximum_day = max(row[0] for row in rows)
     cutoff = (dt.date.fromisoformat(maximum_day) - dt.timedelta(days=400)).isoformat()
     latest_payload = {
-        "version": 1,
+        "version": 2,
         "updated_utc": payload["updated_utc"],
         "source": SOURCE,
         "fields": FIELDS,
