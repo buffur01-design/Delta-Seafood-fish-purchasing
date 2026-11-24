@@ -971,11 +971,10 @@
       <p class="map-loading" id="map-status" role="status">Loading world map…</p>
     </div>
 
-    <section class="fisheries-dashboard" aria-labelledby="dashboard-title">
+    <section class="fisheries-dashboard">
       <header class="dashboard-heading">
         <div>
           <p class="dashboard-eyebrow" id="dashboard-eyebrow">Market intelligence</p>
-          <h2 id="dashboard-title">Fisheries landings dashboard in the Faroe Islands</h2>
         </div>
         <div class="dashboard-updated" id="updated">Loading latest data…</div>
       </header>
@@ -1004,7 +1003,6 @@
       <div id="dashboard" hidden>
         <div class="dashboard-charts">
           <article class="dashboard-chart-card">
-            <p id="graph-description">Choose species below. Your first click shows only that species; later clicks add or remove species. Click a line to focus it, then hover to see vessel details.</p>
             <div class="dashboard-species-selector" id="species-selector" aria-label="Choose species"></div>
             <div class="dashboard-line-controls" aria-label="Line detail options">
               <button class="dashboard-group-toggle" id="split-groups" type="button" aria-pressed="false"><span id="split-groups-label">Ship groups</span></button>
@@ -1519,7 +1517,7 @@
   <script>
     if(new URLSearchParams(window.location.search).get("view") !== "selling"){
       const dashboardScript = document.createElement("script");
-      dashboardScript.src = "fisheries-dashboard.js?v=27";
+      dashboardScript.src = "fisheries-dashboard.js?v=28";
       document.body.appendChild(dashboardScript);
 
       window.addEventListener("delta-language-change", () => {
