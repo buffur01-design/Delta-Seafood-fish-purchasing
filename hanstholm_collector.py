@@ -26,6 +26,22 @@ USER_AGENT = "DeltaSeafoodHanstholmCollector/1.0 (public expected-landings data;
 LOG = logging.getLogger("hanstholm")
 FIELDS = ["auction_date", "species", "msc", "grade", "boxes", "quantity_kg"]
 VESSEL_FIELDS = ["auction_date", "vessel", "quantity_kg"]
+SPECIES_FAROESE = {
+    "Blålange": "Blálonga",
+    "Brosme": "Brosma",
+    "Havtaske": "Havtaska",
+    "Helleflynder": "Kalvi",
+    "Hvilling": "Hvítingur",
+    "Kuller": "Hýsa",
+    "Lange": "Longa",
+    "Mørksej": "Upsi",
+    "Rødfisk": "Kongafiskur",
+    "Rødspætte": "Reyðsprøka",
+    "Hellefisk": "Svartkalvi",
+    "Grønlandsk hellefisk": "Svartkalvi",
+    "Torsk": "Toskur",
+    "Torsk, Blanke": "Toskur",
+}
 
 
 def clean(value: str) -> str:
@@ -40,6 +56,13 @@ def number(value: str) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+def translate_grade(value: str) -> str:
+    if value.lower() == "uspec.":
+        return "Ógreinað"
+    match = re.fullmatch(r"Sort\s+(\d+)", value, re.I)
+    return f"Stødd {match.group(1)}" if match else value
 
 
 def parse(html: str) -> tuple[str, list[list], list[list]]:
@@ -60,20 +83,32 @@ def parse(html: str) -> tuple[str, list[list], list[list]]:
             continue
         label = clean(heading.get_text(" ", strip=True))
         msc = bool(re.search(r"\s+MSC$", label, re.I))
-        species = re.sub(r"\s+MSC$", "", label, flags=re.I).strip()
+        source_species = re.sub(r"\s+MSC$", "", label, flags=re.I).strip()
+        species = SPECIES_FAROESE.get(source_species)
         if not species:
             continue
         for tr in table.find_all("tr"):
             cells = [clean(cell.get_text(" ", strip=True)) for cell in tr.find_all(["td", "th"], recursive=False)]
             if len(cells) < 3:
                 continue
-            grade = cells[0]
+            grade = translate_grade(cells[0])
             if not grade or grade.lower() in {"sort", "total"}:
                 continue
             boxes, kg = number(cells[1]), number(cells[2])
             if kg is None:
                 continue
             rows.append([auction_date, species, msc, grade, int(boxes) if boxes is not None else None, kg])
+
+    combined: dict[tuple, list] = {}
+    for day, species, msc, grade, boxes, kg in rows:
+        key = (day, species, msc, grade)
+        if key not in combined:
+            combined[key] = [day, species, msc, grade, boxes, kg]
+        else:
+            if boxes is not None:
+                combined[key][4] = (combined[key][4] or 0) + boxes
+            combined[key][5] += kg
+    rows = list(combined.values())
 
     if not rows:
         raise ValueError("No recognizable species/grade rows; refusing to replace stored data")
