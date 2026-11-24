@@ -52,7 +52,20 @@
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;
     [$("from-date"),$("to-date")].forEach(control=>{control.min=minDate;control.max=maxDate}); $("updated").textContent=`Dagført ${new Date(payload.updated_utc).toLocaleString("fo-FO")}`;
-    chart=new Chart($("chart"),{type:"line",data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false},tooltip:{itemSort:(a,b)=>b.parsed.y-a.parsed.y}},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:12}},y:{beginAtZero:true,title:{display:true,text:"Kilo"},ticks:{callback:value=>fmt.format(value)}}}});
+    chart=new Chart($("chart"),{
+      type:"line",
+      data:{labels:[],datasets:[]},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:"index",intersect:false},
+        plugins:{legend:{display:false},tooltip:{itemSort:(a,b)=>b.parsed.y-a.parsed.y}},
+        scales:{
+          x:{grid:{display:false},ticks:{maxTicksLimit:12}},
+          y:{beginAtZero:true,title:{display:true,text:"Kilo"},ticks:{callback:value=>fmt.format(value)}}
+        }
+      }
+    });
     $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); setPeriod(90);
     [$("from-date"),$("to-date")].forEach(control=>control.onchange=async()=>{document.querySelectorAll(".period").forEach(button=>button.classList.remove("active"));await ensureFullHistory();render()});
     document.querySelectorAll(".period").forEach(button=>button.onclick=()=>setPeriod(button.dataset.days));
