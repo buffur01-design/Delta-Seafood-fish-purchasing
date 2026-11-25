@@ -516,6 +516,12 @@
     return 100*(value-timelineWindowStart)/Math.max(1,timelineWindowEnd-timelineWindowStart);
   }
 
+  function fitTimelineWindow(from,to){
+    const selectedSpan=Math.max(1,to-from);
+    timelineWindowStart=Math.max(timelineFirstDay,from-selectedSpan);
+    timelineWindowEnd=Math.min(timelineLastDay,to+Math.max(1,Math.round(selectedSpan*.15)));
+  }
+
   function renderTimelineMonths(){
     elements.timelineMonths.replaceChildren();
     const span=timelineWindowEnd-timelineWindowStart;
@@ -589,14 +595,9 @@
     let to=Number(elements.timelineTo.value);
     if(handle==="from") from=Math.min(from,to-1);
     else to=Math.max(to,from+1);
-    if(handle==="from"&&from<=timelineWindowStart+3&&timelineWindowStart>timelineFirstDay){
-      timelineWindowStart=Math.max(timelineFirstDay,timelineWindowStart-180);
-    }
-    if(handle==="to"&&to>=timelineWindowEnd-3&&timelineWindowEnd<timelineLastDay){
-      timelineWindowEnd=Math.min(timelineLastDay,timelineWindowEnd+180);
-    }
     elements.from.value=dayToDate(from);
     elements.to.value=dayToDate(to);
+    fitTimelineWindow(from,to);
     updateTimeline();
     queueTimelineRender();
   }
@@ -604,9 +605,7 @@
   function initializeTimeline(first,last){
     timelineFirstDay=dateToDay(first);
     timelineLastDay=dateToDay(last);
-    timelineWindowEnd=timelineLastDay;
-    timelineWindowStart=Math.max(timelineFirstDay,timelineWindowEnd-365);
-    ensureTimelineDateVisible(dateToDay(elements.from.value));
+    fitTimelineWindow(dateToDay(elements.from.value),dateToDay(elements.to.value));
     updateTimeline();
   }
 
@@ -926,8 +925,7 @@
           if(node===elements.from) elements.to.value=elements.from.value;
           else elements.from.value=elements.to.value;
         }
-        ensureTimelineDateVisible(dateToDay(elements.from.value));
-        ensureTimelineDateVisible(dateToDay(elements.to.value));
+        fitTimelineWindow(dateToDay(elements.from.value),dateToDay(elements.to.value));
         updateTimeline();
         if(!elements.splitVessels.checked){
           render();

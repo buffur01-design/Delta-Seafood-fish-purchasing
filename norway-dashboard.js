@@ -68,6 +68,7 @@
     document.querySelectorAll(".period").forEach(button=>button.classList.toggle("active",button.dataset.days===String(value))); await ensureFullHistory(); render();
   }
   const dayAt = index => {const date=new Date(`${minDate}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(index));return date.toISOString().slice(0,10);};
+  function fitTimelineWindow(){const from=Number($("rangeFrom").value),to=Number($("rangeTo").value),span=Math.max(1,to-from);timelineStart=Math.max(0,from-span);timelineEnd=Math.min(timelineMaximum,to+Math.max(1,Math.round(span*.15)));[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=timelineStart;input.max=timelineEnd});$("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`}
   function updateTimeline(){
     const from=$("rangeFrom"),to=$("rangeTo"),maximum=Math.max(1,timelineEnd-timelineStart);
     if(Number(from.value)>Number(to.value)) from.value=to.value;
@@ -79,10 +80,9 @@
   }
   function setupTimeline(){
     const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
-    timelineMaximum=maximum;timelineEnd=maximum;timelineStart=Math.max(0,maximum-365);[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=timelineStart;input.max=timelineEnd});$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(timelineStart,maximum-89);
-    $("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`;
+    timelineMaximum=maximum;$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);fitTimelineWindow();
     updateTimeline();
-    [$("rangeFrom"),$("rangeTo")].forEach((input,index)=>{input.oninput=()=>{let changed=false;if(index===0&&Number(input.value)<=timelineStart+3&&timelineStart>0){timelineStart=Math.max(0,timelineStart-180);changed=true}if(index===1&&Number(input.value)>=timelineEnd-3&&timelineEnd<timelineMaximum){timelineEnd=Math.min(timelineMaximum,timelineEnd+180);changed=true}if(changed){[$("rangeFrom"),$("rangeTo")].forEach(item=>{item.min=timelineStart;item.max=timelineEnd});$("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`}updateTimeline();render()};input.onchange=async()=>{updateTimeline();await ensureFullHistory();render()};});
+    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{fitTimelineWindow();updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
   }
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;
