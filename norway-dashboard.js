@@ -7,7 +7,7 @@
   const dateFmt = new Intl.DateTimeFormat("fo-FO", {day:"2-digit",month:"2-digit",year:"numeric"});
   const dateTickLimit = (count,width) => Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
   function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){let a="-50%",b="-50%";if(toPercent-fromPercent<12){if(toPercent>85){a="-200%";b="-100%"}else if(fromPercent<15){a="0";b="100%"}else{a="-100%";b="0"}}fromLabel.style.transform=`translateX(${a})`;toLabel.style.transform=`translateX(${b})`}
-  let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart;
+  let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart, timelineStart=0, timelineEnd=0, timelineMaximum=0;
   const selected = new Set(speciesOrder.slice(0,6));
   const selectedGroups = new Set();
   const objectRow = (fields,row) => { const item=Object.fromEntries(fields.map((field,index)=>[field,row[index]])); item.size_group=item.size_group||"Ikki upplýst"; item.ship_group=item.ship_group||"Ikki upplýst"; item.quantity_kg=Number(item.quantity_kg||0); return item; };
@@ -69,20 +69,20 @@
   }
   const dayAt = index => {const date=new Date(`${minDate}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(index));return date.toISOString().slice(0,10);};
   function updateTimeline(){
-    const from=$("rangeFrom"),to=$("rangeTo"),maximum=Number(to.max)||1;
+    const from=$("rangeFrom"),to=$("rangeTo"),maximum=Math.max(1,timelineEnd-timelineStart);
     if(Number(from.value)>Number(to.value)) from.value=to.value;
     $("from-date").value=dayAt(from.value);$("to-date").value=dayAt(to.value);
-    const left=Number(from.value)/maximum*100,right=100-Number(to.value)/maximum*100;
+    const left=(Number(from.value)-timelineStart)/maximum*100,right=100-(Number(to.value)-timelineStart)/maximum*100;
     $("timeline").style.setProperty("--from",`calc(18px + (100% - 36px) * ${left/100})`);$("timeline").style.setProperty("--to",`calc(18px + (100% - 36px) * ${right/100})`);
-    const toPercent=Number(to.value)/maximum*100;$("fromBubble").style.left=`calc(18px + (100% - 36px) * ${left/100})`;$("toBubble").style.left=`calc(18px + (100% - 36px) * ${toPercent/100})`;
+    const toPercent=(Number(to.value)-timelineStart)/maximum*100;$("fromBubble").style.left=`calc(18px + (100% - 36px) * ${left/100})`;$("toBubble").style.left=`calc(18px + (100% - 36px) * ${toPercent/100})`;
     $("fromBubble").textContent=formatDate($("from-date").value);$("toBubble").textContent=formatDate($("to-date").value);separateTimelineLabels($("fromBubble"),$("toBubble"),left,toPercent);
   }
   function setupTimeline(){
     const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
-    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=0;input.max=maximum});$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);
-    const firstYear=Number(minDate.slice(0,4)),lastYear=Number(maxDate.slice(0,4));$("months").innerHTML=Array.from({length:lastYear-firstYear+1},(_,index)=>`<span>${firstYear+index}</span>`).join("");
+    timelineMaximum=maximum;timelineEnd=maximum;timelineStart=Math.max(0,maximum-365);[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=timelineStart;input.max=timelineEnd});$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(timelineStart,maximum-89);
+    $("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`;
     updateTimeline();
-    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{updateTimeline();render()};input.onchange=async()=>{updateTimeline();await ensureFullHistory();render()};});
+    [$("rangeFrom"),$("rangeTo")].forEach((input,index)=>{input.oninput=()=>{let changed=false;if(index===0&&Number(input.value)<=timelineStart+3&&timelineStart>0){timelineStart=Math.max(0,timelineStart-180);changed=true}if(index===1&&Number(input.value)>=timelineEnd-3&&timelineEnd<timelineMaximum){timelineEnd=Math.min(timelineMaximum,timelineEnd+180);changed=true}if(changed){[$("rangeFrom"),$("rangeTo")].forEach(item=>{item.min=timelineStart;item.max=timelineEnd});$("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`}updateTimeline();render()};input.onchange=async()=>{updateTimeline();await ensureFullHistory();render()};});
   }
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;

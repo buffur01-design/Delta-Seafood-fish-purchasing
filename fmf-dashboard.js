@@ -12,7 +12,7 @@
   ]);
   const normalizeSpecies = name => String(name || "").replace(/\s*-\s*Stikkað?$/iu, "").replace(/\s*\(sek\.\)$/iu, "").trim();
   const el = { species: $("species"), sizes: $("sizes"), vessels: $("vessels"), sizeTitle: $("sizeTitle"), vesselTitle: $("vesselTitle"), split: $("splitVessels"), from: $("from"), to: $("to"), fromB: $("fromBubble"), toB: $("toBubble"), months: $("months"), timeline: $("timeline"), summary: $("summary"), body: $("rows"), graphVessels: $("graphVessels"), graphSizes: $("graphSizes"), vesselSearch: $("vesselSearch"), selectAllVessels: $("selectAllVessels"), deselectAllVessels: $("deselectAllVessels"), status: $("status"), content: $("content"), updated: $("updated") };
-  let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "";
+  let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "", timelineStart = 0, timelineEnd = 0, timelineMaximum = 0;
   let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
   const dateTickLimit = (count, width) => Math.max(2, Math.min(count, Math.floor(Math.max(320, width || 900) / 85)));
@@ -69,10 +69,10 @@
     el.vessels.innerHTML = vessels.map(item => { const price = item.prices.length ? item.prices.reduce((a, b) => a + b, 0) / item.prices.length : null; return `<article class="vessel-card"><strong>${item.vessel}</strong><span>${item.registration || ""}</span><span>${fmt(item.kg)} kg${price === null ? "" : ` · ${fmt(price)} DKK/kg`}</span></article>`; }).join("") || '<span class="empty">Eingi skip funnin.</span>';
   }
   function updateTimeline() {
-    const max = dates.length - 1; el.from.max = el.to.max = max;
+    const max = Math.max(1, timelineEnd - timelineStart); el.from.min = el.to.min = timelineStart; el.from.max = el.to.max = timelineEnd;
     let from = +el.from.value, to = +el.to.value;
     if (from > to) { if (document.activeElement === el.from) el.to.value = from; else el.from.value = to; from = +el.from.value; to = +el.to.value; }
-    const p1 = max ? from / max * 100 : 0, p2 = max ? to / max * 100 : 100;
+    const p1 = (from - timelineStart) / max * 100, p2 = (to - timelineStart) / max * 100;
     const fromPos = `calc(${p1}% + ${16 - p1 * .32}px)`, toPos = `calc(${p2}% + ${16 - p2 * .32}px)`;
     el.timeline.style.setProperty("--from", fromPos); el.timeline.style.setProperty("--to", `calc(${100 - p2}% + ${p2 * .32}px)`);
     el.fromB.textContent = dates[from] || ""; el.toB.textContent = dates[to] || ""; el.fromB.style.left = fromPos; el.toB.style.left = toPos; separateTimelineLabels(el.fromB, el.toB, p1, p2);
@@ -162,10 +162,10 @@
 
   fetch("data/fmf/fmf_auctions.json", { cache: "no-store" }).then(response => { if (!response.ok) throw Error(`HTTP ${response.status}`); return response.json(); }).then(payload => {
     rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species), ship_group: row.ship_group || "Ikki upplýst"})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set([...new Set(rows.map(row => row.species))].slice(0, 10)); selectedVessels = new Set(rows.map(vesselKey)); selectedGroups = new Set(rows.map(row => row.ship_group)); el.split.checked = true;
-    el.from.min = el.to.min = 0; el.from.value = 0; el.to.value = Math.max(0, dates.length - 1); el.months.innerHTML = [...new Set(dates.map(date => date.slice(0, 7)))].map(month => `<span>${month}</span>`).join(""); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
+    timelineMaximum = Math.max(0, dates.length - 1); timelineEnd = timelineMaximum; timelineStart = Math.max(0, timelineMaximum - 365); el.from.value = Math.max(timelineStart, timelineMaximum - 89); el.to.value = timelineMaximum; el.months.innerHTML = `<span>${dates[timelineStart]?dates[timelineStart].slice(0,7):""}</span><span>${dates[timelineEnd]?dates[timelineEnd].slice(0,7):""}</span>`; el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
     chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false }, ticks: {} }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
-    el.from.oninput = el.to.oninput = () => { renderSizes(); renderVessels(); render(); }; el.split.onchange = () => { if(el.split.checked) $("splitGroups").classList.remove("active"); render(); }; el.vesselSearch.addEventListener("input", render);
+    [el.from,el.to].forEach((input,index)=>input.oninput=()=>{let changed=false;if(index===0&&Number(input.value)<=timelineStart+3&&timelineStart>0){timelineStart=Math.max(0,timelineStart-180);changed=true}if(index===1&&Number(input.value)>=timelineEnd-3&&timelineEnd<timelineMaximum){timelineEnd=Math.min(timelineMaximum,timelineEnd+180);changed=true}if(changed)el.months.innerHTML=`<span>${dates[timelineStart]?dates[timelineStart].slice(0,7):""}</span><span>${dates[timelineEnd]?dates[timelineEnd].slice(0,7):""}</span>`;renderSizes();renderVessels();render()}); el.split.onchange = () => { if(el.split.checked) $("splitGroups").classList.remove("active"); render(); }; el.vesselSearch.addEventListener("input", render);
     $("splitGroups").onclick = () => { $("splitGroups").classList.toggle("active"); if($("splitGroups").classList.contains("active")) el.split.checked=false; render(); };
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
     el.deselectAllVessels.onclick = () => { selectedVessels.clear(); el.split.checked = false; render(); };
