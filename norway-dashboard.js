@@ -11,17 +11,18 @@
   const formatDate = value => dateFmt.format(new Date(`${value}T12:00:00Z`));
   const monthKey = day => day.slice(0,7);
   const datedRows = () => rows.filter(row => row.date >= $("from-date").value && row.date <= $("to-date").value && selected.has(row.species));
-  const visibleRows = () => datedRows().filter(row => !focusedSize || row.size_group===focusedSize);
+  const seriesKey = row => `${row.species}|||${row.size_group}`;
+  const visibleRows = () => datedRows().filter(row => !focusedSize || seriesKey(row)===focusedSize);
 
   function renderSpecies(){
     $("species").innerHTML=speciesOrder.map((name,index)=>`<button type="button" class="${selected.has(name)?"active":""}" data-name="${name}" style="--c:${colours[index]}">${name}</button>`).join("");
     $("species").querySelectorAll("button").forEach(button=>button.onclick=()=>{selected.has(button.dataset.name)?selected.delete(button.dataset.name):selected.add(button.dataset.name);focusedSize="";renderSpecies();render();});
   }
   function renderSizes(){
-    const totals=new Map(); datedRows().forEach(row=>totals.set(row.size_group,(totals.get(row.size_group)||0)+row.quantity_kg));
+    const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
     const groups=[...totals].sort((a,b)=>b[1]-a[1]);
-    $("sizes").innerHTML=groups.length?groups.map(([name,kg],index)=>`<button type="button" class="size-row ${focusedSize===name?"active":""}" data-size="${name}"><i style="--dot:${colours[index%colours.length]}"></i><span>${name}</span><strong>${fmt.format(kg)} kg</strong></button>`).join(""):'<span>Ongir støddarbólkar.</span>';
-    $("sizes").querySelectorAll("button").forEach(button=>button.onclick=()=>{focusedSize=focusedSize===button.dataset.size?"":button.dataset.size;render();});
+    $("sizes").innerHTML=groups.length?groups.map(([key,kg])=>{const [species,size]=key.split("|||");const colour=colours[speciesOrder.indexOf(species)];return `<button type="button" class="size-row ${focusedSize===key?"active":""}" data-key="${key}"><i style="--dot:${colour}"></i><span><b>${species}</b> · ${size}</span><strong>${fmt.format(kg)} kg</strong></button>`;}).join(""):'<span>Ongir støddarbólkar.</span>';
+    $("sizes").querySelectorAll("button").forEach(button=>button.onclick=()=>{focusedSize=focusedSize===button.dataset.key?"":button.dataset.key;render();});
   }
   function render(){
     renderSizes(); const data=visibleRows();
@@ -31,11 +32,12 @@
     chart.data.labels=metric==="total"?[...selected]:keys.map(key=>monthly?key:formatDate(key));
     if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:[...selected].map(name=>data.filter(row=>row.species===name).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:[...selected].map(name=>colours[speciesOrder.indexOf(name)])}];
     else {
-      const names=metric==="size"?[...new Set(data.map(row=>row.size_group))]:[...selected];
-      chart.data.datasets=names.map((name,index)=>({label:name,data:keys.map(key=>data.filter(row=>(metric==="size"?row.size_group:row.species)===name&&(monthly?monthKey(row.date)===key:row.date===key)).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:metric==="size"?colours[index%colours.length]:colours[speciesOrder.indexOf(name)],backgroundColor:(metric==="size"?colours[index%colours.length]:colours[speciesOrder.indexOf(name)])+"22",borderWidth:2,tension:.16,pointRadius:monthly?2:1}));
+      const series=metric==="size"?[...new Map(data.map(row=>[seriesKey(row),{key:seriesKey(row),label:`${row.species} · ${row.size_group}`,species:row.species}])).values()]:[...selected].map(name=>({key:name,label:name,species:name}));
+      const dashPatterns=[[],[8,4],[3,3],[10,3,2,3],[2,4]];
+      chart.data.datasets=series.map((item,index)=>{const colour=colours[speciesOrder.indexOf(item.species)];return{label:item.label,data:keys.map(key=>data.filter(row=>(metric==="size"?seriesKey(row):row.species)===item.key&&(monthly?monthKey(row.date)===key:row.date===key)).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:colour,backgroundColor:colour+"22",borderDash:metric==="size"?dashPatterns[index%dashPatterns.length]:[],borderWidth:2,tension:.16,pointRadius:monthly?2:1};});
     }
     chart.update();
-    const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar${focusedSize?` · ${focusedSize}`:""}`;
+    const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar${focusedSize?` · ${focusedSize.replace("|||"," · ")}`:""}`;
     $("rows").innerHTML=data.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.quantity_kg-a.quantity_kg).slice(0,1200).map(row=>`<tr><td>${formatDate(row.date)}</td><td>${row.species}</td><td>${row.size_group}</td><td>${fmt.format(row.quantity_kg)}</td></tr>`).join("");
   }
   async function ensureFullHistory(){
