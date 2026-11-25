@@ -55,6 +55,23 @@
     if(value==="all") $("from-date").value=minDate; else {const date=new Date(`${maxDate}T12:00:00Z`);date.setUTCDate(date.getUTCDate()-Number(value)+1);$("from-date").value=date.toISOString().slice(0,10)<minDate?minDate:date.toISOString().slice(0,10);}
     document.querySelectorAll(".period").forEach(button=>button.classList.toggle("active",button.dataset.days===String(value))); await ensureFullHistory(); render();
   }
+  const dayAt = index => {const date=new Date(`${minDate}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(index));return date.toISOString().slice(0,10);};
+  function updateTimeline(){
+    const from=$("rangeFrom"),to=$("rangeTo"),maximum=Number(to.max)||1;
+    if(Number(from.value)>Number(to.value)) from.value=to.value;
+    $("from-date").value=dayAt(from.value);$("to-date").value=dayAt(to.value);
+    const left=Number(from.value)/maximum*100,right=100-Number(to.value)/maximum*100;
+    $("timeline").style.setProperty("--from",`calc(18px + (100% - 36px) * ${left/100})`);$("timeline").style.setProperty("--to",`calc(18px + (100% - 36px) * ${right/100})`);
+    $("fromBubble").style.left=`calc(18px + (100% - 36px) * ${left/100})`;$("toBubble").style.left=`calc(18px + (100% - 36px) * ${Number(to.value)/maximum})`;
+    $("fromBubble").textContent=formatDate($("from-date").value);$("toBubble").textContent=formatDate($("to-date").value);
+  }
+  function setupTimeline(){
+    const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
+    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=0;input.max=maximum});$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);
+    const firstYear=Number(minDate.slice(0,4)),lastYear=Number(maxDate.slice(0,4));$("months").innerHTML=Array.from({length:lastYear-firstYear+1},(_,index)=>`<span>${firstYear+index}</span>`).join("");
+    updateTimeline();
+    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{updateTimeline();render()};input.onchange=async()=>{updateTimeline();await ensureFullHistory();render()};});
+  }
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;
     [$("from-date"),$("to-date")].forEach(control=>{control.min=minDate;control.max=maxDate}); $("updated").textContent=`Dagført ${new Date(payload.updated_utc).toLocaleString("fo-FO")}`;
@@ -78,9 +95,8 @@
         }
       }
     });
-    $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); setPeriod(90);
-    [$("from-date"),$("to-date")].forEach(control=>control.onchange=async()=>{document.querySelectorAll(".period").forEach(button=>button.classList.remove("active"));await ensureFullHistory();render()});
-    document.querySelectorAll(".period").forEach(button=>button.onclick=()=>setPeriod(button.dataset.days));
+    $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); setupTimeline(); render();
+    $("allSpecies").onclick=()=>{selected.clear();speciesOrder.forEach(name=>selected.add(name));focusedSize="";renderSpecies();render()};
     $("metrics").querySelectorAll("button").forEach(button=>button.onclick=()=>{metric=button.dataset.metric;$("metrics").querySelectorAll("button").forEach(item=>item.classList.toggle("active",item===button));render()});
   }).catch(error=>{$("status").textContent=`Norsku tølini kundu ikki vísast: ${error.message}`;$("updated").textContent="Tøl ikki tøk"});
 })();
