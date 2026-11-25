@@ -164,7 +164,7 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                         catch_method = (row.get("Redskap") or "Ikki upplýst").strip()
                         raw_condition = (row.get("Konserveringsmåte") or "Ikki upplýst").strip()
                         lowered = raw_condition.casefold()
-                        condition = "Fryst" if "frys" in lowered else ("Ferskt" if "fersk" in lowered else raw_condition)
+                        condition = "Fryst" if ("frys" in lowered or "fross" in lowered) else "Ferskt"
                         totals[(day.isoformat(), species, group, catch_method, condition)] += kg
     if not totals:
         raise ValueError(f"No selected species found in official file for {year}")
