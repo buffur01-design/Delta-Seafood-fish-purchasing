@@ -67,6 +67,7 @@
     else {
       chart.data.datasets=series.map(item=>{const base=colours[speciesOrder.indexOf(item.species)],match=item.label.match(/Stødd (\d+)/),sizeNumber=match?Number(match[1]):0,colour=sizeMode?tint(base,Math.min(sizeNumber*.1,.6)):base;return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),stack:sizeMode?item.species:undefined,borderColor:sizeMode?base:colour,backgroundColor:sizeMode?colour:colour+"22",borderWidth:sizeMode?1:2,borderRadius:sizeMode?3:0,borderSkipped:false,tension:.16,pointRadius:monthly?2:1,barPercentage:.82,categoryPercentage:.78};});
     }
+    chart.$breakdownLines=metric==="total"?[]:keys.map(key=>{const pointRows=data.filter(row=>bucket(row.date)===key),gearTotals=new Map(),conditionTotals=new Map();pointRows.forEach(row=>{const group=gearGroup(row.catch_method);gearTotals.set(group,(gearTotals.get(group)||0)+row.quantity_kg);conditionTotals.set(row.condition,(conditionTotals.get(row.condition)||0)+row.quantity_kg)});const gearLines=catchGroups.map(([title])=>title.split(" · ")[0]).filter(group=>gearTotals.get(group)>0).map(group=>`${group}: ${fmt.format(gearTotals.get(group))} kg`),conditionLines=["Ferskt","Fryst"].filter(condition=>conditionTotals.get(condition)>0).map(condition=>`${condition}: ${fmt.format(conditionTotals.get(condition))} kg`);return [...(gearLines.length?["Veiðiháttur:",...gearLines]:[]),...(conditionLines.length?["Ferskt / fryst:",...conditionLines]:[])]});
     chart.update();
     const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar${focusedSize?` · ${focusedSize.replace("|||"," · ")}`:""}`;
     $("rows").innerHTML=data.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.quantity_kg-a.quantity_kg).slice(0,1200).map(row=>`<tr><td>${formatDate(row.date)}</td><td>${row.species}</td><td>${row.size_group}</td><td>${gearGroup(row.catch_method)}</td><td>${row.condition}</td><td>${fmt.format(row.quantity_kg)}</td></tr>`).join("");
@@ -115,7 +116,8 @@
           legend:{display:false},
           tooltip:{
             itemSort:(a,b)=>b.parsed.y-a.parsed.y,
-            filter:item=>Number(item.parsed.y)>0
+            filter:item=>Number(item.parsed.y)>0,
+            callbacks:{afterBody:items=>items.length&&chart.$breakdownLines?(chart.$breakdownLines[items[0].dataIndex]||[]):[]}
           }
         },
         scales:{
