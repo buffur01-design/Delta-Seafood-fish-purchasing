@@ -15,6 +15,7 @@
   let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "";
   let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
+  const dateTickLimit = (count, width) => Math.max(2, Math.min(count, Math.floor(Math.max(320, width || 900) / 85)));
 
   function dateRows() {
     const low = dates[+el.from.value], high = dates[+el.to.value];
@@ -98,6 +99,10 @@
     const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
     renderGraphInfo(baseData, data, names, lineName);
     chart.config.type = metric === "total" ? "bar" : "line";
+    chart.options.scales.x.ticks.maxTicksLimit = metric === "total" ? 12 : dateTickLimit(labels.length, chart.width);
+    chart.options.scales.x.ticks.autoSkip = true;
+    chart.options.scales.x.ticks.maxRotation = metric === "total" ? 45 : 0;
+    chart.options.scales.x.ticks.minRotation = metric === "total" ? 45 : 0;
     if (metric === "total") chart.data = { labels: names, datasets: [{ label: "Kilo tilsamans", data: names.map(name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0)), backgroundColor: names.map((_, i) => colours[i % colours.length]) }] };
     else chart.data = { labels, datasets: names.map((name, index) => ({ label: name, data: labels.map(day => { const matches = data.filter(row => row.sale_date === day && lineName(row) === name); if (metric === "price") { const priced = matches.filter(row => row.minimum_price_dkk_kg !== null && row.minimum_price_dkk_kg !== ""); return priced.length ? priced.reduce((sum, row) => sum + Number(row.minimum_price_dkk_kg), 0) / priced.length : null; } return matches.reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0); }), borderColor: colours[index % colours.length], backgroundColor: colours[index % colours.length] + "22", borderWidth: 2, tension: .18, pointRadius: 2 })) };
     chart.options.scales.y.title.text = metric === "price" ? "DKK/kg" : "Nøgd (kg)"; chart.update();
@@ -149,7 +154,7 @@
   fetch("data/fmf/fmf_auctions.json", { cache: "no-store" }).then(response => { if (!response.ok) throw Error(`HTTP ${response.status}`); return response.json(); }).then(payload => {
     rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species), ship_group: row.ship_group || "Ikki upplýst"})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set([...new Set(rows.map(row => row.species))].slice(0, 10)); selectedVessels = new Set(rows.map(vesselKey)); selectedGroups = new Set(rows.map(row => row.ship_group)); el.split.checked = true;
     el.from.min = el.to.min = 0; el.from.value = 0; el.to.value = Math.max(0, dates.length - 1); el.months.innerHTML = [...new Set(dates.map(date => date.slice(0, 7)))].map(month => `<span>${month}</span>`).join(""); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
-    chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
+    chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false }, ticks: {} }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
     el.from.oninput = el.to.oninput = () => { renderSizes(); renderVessels(); render(); }; el.split.onchange = () => { if(el.split.checked) $("splitGroups").classList.remove("active"); render(); }; el.vesselSearch.addEventListener("input", render);
     $("splitGroups").onclick = () => { $("splitGroups").classList.toggle("active"); if($("splitGroups").classList.contains("active")) el.split.checked=false; render(); };

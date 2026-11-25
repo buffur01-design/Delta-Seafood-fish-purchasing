@@ -5,6 +5,7 @@
   const colours = ["#74b5c5","#08752f","#9cb4d6","#dda879","#7650a5","#d19aa2","#b7dce5","#a17b00","#44a98c","#bd5ec8","#91ae16","#62aabd"];
   const fmt = new Intl.NumberFormat("fo-FO", {maximumFractionDigits:0});
   const dateFmt = new Intl.DateTimeFormat("fo-FO", {day:"2-digit",month:"2-digit",year:"numeric"});
+  const dateTickLimit = (count,width) => Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
   let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart;
   const selected = new Set(speciesOrder.slice(0,6));
   const selectedGroups = new Set();
@@ -41,6 +42,7 @@
     const keys=[...new Set(data.map(row=>bucket(row.date)))].sort();
     chart.config.type=metric==="total"||sizeMode?"bar":"line";
     chart.options.scales.x.stacked=sizeMode;chart.options.scales.y.stacked=sizeMode;
+    chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
     const splitGroups=$("splitGroups").classList.contains("active");
     const lineKey=row=>sizeMode?`${row.species}|||${row.size_group}${splitGroups?`|||${row.ship_group}`:""}`:`${row.species}${splitGroups?`|||${row.ship_group}`:""}`;
     const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species}])).values()];

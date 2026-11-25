@@ -275,6 +275,7 @@
   let vesselSelectionInitialized=false;
   let vesselLoadError="";
   const millisecondsPerDay=86400000;
+  const dateTickLimit=(count,width)=>Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
   let timelineFirstDay=0;
   let timelineLastDay=0;
   let timelineWindowStart=0;
@@ -783,6 +784,8 @@
     chartInstance.options.scales.x.title.display=targetMetric!=="total";
     chartInstance.options.scales.x.ticks.maxRotation=targetMetric==="total"?45:0;
     chartInstance.options.scales.x.ticks.minRotation=targetMetric==="total"?45:0;
+    chartInstance.options.scales.x.ticks.autoSkip=true;
+    chartInstance.options.scales.x.ticks.maxTicksLimit=targetMetric==="total"?12:dateTickLimit(days.length,chartInstance.width);
     chartInstance.options.scales.y.title.text=targetMetric==="price"?copy.priceAxis:copy.quantityAxis;
     chartInstance.options.scales.y.beginAtZero=targetMetric!=="price";
     chartInstance.options.scales.y.ticks.callback=value=>targetMetric==="price"?price.format(value):number.format(value);
