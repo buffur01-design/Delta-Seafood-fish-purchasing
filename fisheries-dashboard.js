@@ -595,6 +595,11 @@
     let to=Number(elements.timelineTo.value);
     if(handle==="from") from=Math.min(from,to-1);
     else to=Math.max(to,from+1);
+    const windowSpan=Math.max(1,timelineWindowEnd-timelineWindowStart);
+    const edge=Math.max(3,Math.round(windowSpan*.05));
+    const shift=Math.max(14,Math.round(windowSpan*.5));
+    if(handle==="from"&&from<=timelineWindowStart+edge&&timelineWindowStart>timelineFirstDay) timelineWindowStart=Math.max(timelineFirstDay,timelineWindowStart-shift);
+    if(handle==="to"&&to>=timelineWindowEnd-edge&&timelineWindowEnd<timelineLastDay) timelineWindowEnd=Math.min(timelineLastDay,timelineWindowEnd+shift);
     elements.from.value=dayToDate(from);
     elements.to.value=dayToDate(to);
     updateTimeline();

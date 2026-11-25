@@ -69,6 +69,7 @@
   }
   const dayAt = index => {const date=new Date(`${minDate}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+Number(index));return date.toISOString().slice(0,10);};
   function fitTimelineWindow(){const from=Number($("rangeFrom").value),to=Number($("rangeTo").value),span=Math.max(1,to-from);timelineStart=Math.max(0,from-span);timelineEnd=Math.min(timelineMaximum,to+Math.max(1,Math.round(span*.15)));[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=timelineStart;input.max=timelineEnd});$("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`}
+  function panTimelineAtEdge(index){const input=index===0?$("rangeFrom"):$("rangeTo"),span=Math.max(1,timelineEnd-timelineStart),edge=Math.max(3,Math.round(span*.05)),shift=Math.max(14,Math.round(span*.5));if(index===0&&Number(input.value)<=timelineStart+edge&&timelineStart>0)timelineStart=Math.max(0,timelineStart-shift);if(index===1&&Number(input.value)>=timelineEnd-edge&&timelineEnd<timelineMaximum)timelineEnd=Math.min(timelineMaximum,timelineEnd+shift);[$("rangeFrom"),$("rangeTo")].forEach(item=>{item.min=timelineStart;item.max=timelineEnd});$("months").innerHTML=`<span>${dayAt(timelineStart).slice(0,7)}</span><span>${dayAt(timelineEnd).slice(0,7)}</span>`}
   function updateTimeline(){
     const from=$("rangeFrom"),to=$("rangeTo"),maximum=Math.max(1,timelineEnd-timelineStart);
     if(Number(from.value)>Number(to.value)) from.value=to.value;
@@ -82,7 +83,7 @@
     const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
     timelineMaximum=maximum;$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);fitTimelineWindow();
     updateTimeline();
-    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
+    [$("rangeFrom"),$("rangeTo")].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
   }
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;
