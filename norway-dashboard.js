@@ -82,7 +82,7 @@
   }
   function setupTimeline(){
     const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
-    timelineMaximum=maximum;$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);fitTimelineWindow();
+    timelineMaximum=maximum;[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=0;input.max=maximum});$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);fitTimelineWindow();
     updateTimeline();
     [$("rangeFrom"),$("rangeTo")].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
   }
