@@ -10,6 +10,14 @@
   let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart, timelineStart=0, timelineEnd=0, timelineMaximum=0;
   const selected = new Set(speciesOrder.slice(0,6));
   const selectedCatchMethods = new Set(), selectedConditions = new Set();
+  const catchGroups = [
+    ["Trol (Trawl) · aktive slæberedskaber",["Bunntrål","Bunntrål par","Bomtrål","Flytetrål","Reketrål (herunder sputniktrål)","Krepsetrål","Udefinert trål"]],
+    ["Nót (Vod / Not) · indkredsende redskaber",["Snurpenot/ringnot","Landnot","Snurrevad","Udefinert not"]],
+    ["Gørn · passive netredskaber",["Settegarn","Drivgarn","Udefinert garn"]],
+    ["Línu (Krogredskaber) · line- og snørefiskeri",["Autoline","Flyteline","Andre liner","Dorg/harp/snik","Juksa/pilk","Udefinert krokredskap"]],
+    ["Teiner og ruser · fælder",["Teiner","Havteiner","Ruser"]],
+    ["Øvrigt",["Annet"]]
+  ];
   const objectRow = (fields,row) => { const item=Object.fromEntries(fields.map((field,index)=>[field,row[index]])); item.size_group=item.size_group||"Ikki upplýst"; item.catch_method=item.catch_method||"Ikki upplýst"; item.condition=item.condition||"Ikki upplýst"; item.quantity_kg=Number(item.quantity_kg||0); return item; };
   const formatDate = value => dateFmt.format(new Date(`${value}T12:00:00Z`));
   const monthKey = day => day.slice(0,7);
@@ -28,7 +36,16 @@
     $(id).innerHTML=values.map(value=>`<label><input type="checkbox" value="${value.replaceAll('"','&quot;')}" ${selectedValues.has(value)?"checked":""}>${value}</label>`).join("");
     $(id).querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedValues.add(input.value):selectedValues.delete(input.value);render();});
   }
-  function renderFilters(){renderFilter("catchOptions",[...new Set(rows.map(row=>row.catch_method))].sort((a,b)=>a.localeCompare(b,"fo")),selectedCatchMethods);renderFilter("conditionOptions",[...new Set(rows.map(row=>row.condition))].sort((a,b)=>a.localeCompare(b,"fo")),selectedConditions)}
+  function renderCatchFilters(){
+    const available=[...new Set(rows.map(row=>row.catch_method))],known=new Set(catchGroups.flatMap(([,methods])=>methods));
+    if(!selectedCatchMethods.size) available.forEach(value=>selectedCatchMethods.add(value));
+    const grouped=catchGroups.map(([title,methods],index)=>[title,index,methods.filter(method=>available.includes(method))]);
+    const unknown=available.filter(method=>!known.has(method)).sort((a,b)=>a.localeCompare(b,"fo"));if(unknown.length)grouped[grouped.length-1][2].push(...unknown);
+    $("catchOptions").innerHTML=grouped.filter(([, ,methods])=>methods.length).map(([title,index,methods])=>`<section class="catch-group"><label class="catch-group-title"><input type="checkbox" data-group="${index}">${title}</label><div class="catch-group-methods">${methods.map(method=>`<label><input type="checkbox" data-method value="${method.replaceAll('"','&quot;')}" ${selectedCatchMethods.has(method)?"checked":""}>${method}</label>`).join("")}</div></section>`).join("");
+    $("catchOptions").querySelectorAll("[data-method]").forEach(input=>input.onchange=()=>{input.checked?selectedCatchMethods.add(input.value):selectedCatchMethods.delete(input.value);renderCatchFilters();render()});
+    $("catchOptions").querySelectorAll("[data-group]").forEach(input=>{const methods=grouped.find(([,index])=>index===Number(input.dataset.group))[2],count=methods.filter(method=>selectedCatchMethods.has(method)).length;input.checked=count===methods.length;input.indeterminate=count>0&&count<methods.length;input.onchange=()=>{methods.forEach(method=>input.checked?selectedCatchMethods.add(method):selectedCatchMethods.delete(method));renderCatchFilters();render()}});
+  }
+  function renderFilters(){renderCatchFilters();renderFilter("conditionOptions",[...new Set(rows.map(row=>row.condition))].sort((a,b)=>a.localeCompare(b,"fo")),selectedConditions)}
   function renderSizes(){
     const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
     const groups=[...totals].sort((a,b)=>b[1]-a[1]);
