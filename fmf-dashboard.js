@@ -13,7 +13,7 @@
   const normalizeSpecies = name => String(name || "").replace(/\s*-\s*Stikkað?$/iu, "").replace(/\s*\(sek\.\)$/iu, "").trim();
   const el = { species: $("species"), sizes: $("sizes"), vessels: $("vessels"), sizeTitle: $("sizeTitle"), vesselTitle: $("vesselTitle"), split: $("splitVessels"), from: $("from"), to: $("to"), fromB: $("fromBubble"), toB: $("toBubble"), months: $("months"), timeline: $("timeline"), summary: $("summary"), body: $("rows"), graphVessels: $("graphVessels"), graphSizes: $("graphSizes"), vesselSearch: $("vesselSearch"), selectAllVessels: $("selectAllVessels"), deselectAllVessels: $("deselectAllVessels"), status: $("status"), content: $("content"), updated: $("updated") };
   let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "";
-  let selected = new Set(), selectedVessels = new Set();
+  let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
 
   function dateRows() {
@@ -21,7 +21,7 @@
     return rows.filter(row => row.sale_date >= low && row.sale_date <= high);
   }
   function baseFiltered() {
-    return dateRows().filter(row => selected.has(row.species) && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
+    return dateRows().filter(row => selected.has(row.species) && selectedGroups.has(row.ship_group || "Ikki upplýst") && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
   }
   function vesselKey(row) { return `${row.vessel}|${row.registration || ""}`; }
   function filtered() {
@@ -35,6 +35,11 @@
       focusedSpecies = button.dataset.name; focusedSize = ""; focusedProductGroup = ""; selected = new Set([focusedSpecies]);
       renderSpecies(); renderSizes(); renderVessels(); render();
     }));
+  }
+  function renderGroups() {
+    const groups = [...new Set(rows.map(row => row.ship_group || "Ikki upplýst"))].sort((a,b)=>a.localeCompare(b,"fo"));
+    $("groupOptions").innerHTML = groups.map(group => `<label><input type="checkbox" value="${group.replaceAll('"','&quot;')}" ${selectedGroups.has(group)?"checked":""}>${group}</label>`).join("");
+    $("groupOptions").querySelectorAll("input").forEach(input => input.onchange = () => { input.checked ? selectedGroups.add(input.value) : selectedGroups.delete(input.value); render(); });
   }
   function renderSizes() {
     if (!focusedSpecies) { el.sizeTitle.textContent = "Støddarbólkar"; el.sizes.innerHTML = '<span class="empty">Vel eitt fiskaslag.</span>'; return; }
@@ -87,7 +92,8 @@
   function render() {
     updateTimeline(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
     const singleVessel = selectedVessels.size === 1;
-    const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (el.split.checked && !singleVessel ? row.vessel : row.species);
+    const splitGroups = $("splitGroups").classList.contains("active");
+    const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (splitGroups ? `${row.species} · ${row.ship_group || "Ikki upplýst"}` : (el.split.checked && !singleVessel ? row.vessel : row.species));
     const totalKg = name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0);
     const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
     renderGraphInfo(baseData, data, names, lineName);
@@ -141,11 +147,12 @@
   }
 
   fetch("data/fmf/fmf_auctions.json", { cache: "no-store" }).then(response => { if (!response.ok) throw Error(`HTTP ${response.status}`); return response.json(); }).then(payload => {
-    rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species)})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set([...new Set(rows.map(row => row.species))].slice(0, 10)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true;
+    rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species), ship_group: row.ship_group || "Ikki upplýst"})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set([...new Set(rows.map(row => row.species))].slice(0, 10)); selectedVessels = new Set(rows.map(vesselKey)); selectedGroups = new Set(rows.map(row => row.ship_group)); el.split.checked = true;
     el.from.min = el.to.min = 0; el.from.value = 0; el.to.value = Math.max(0, dates.length - 1); el.months.innerHTML = [...new Set(dates.map(date => date.slice(0, 7)))].map(month => `<span>${month}</span>`).join(""); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
     chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
-    el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderSizes(); renderVessels(); render();
-    el.from.oninput = el.to.oninput = () => { renderSizes(); renderVessels(); render(); }; el.split.onchange = render; el.vesselSearch.addEventListener("input", render);
+    el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
+    el.from.oninput = el.to.oninput = () => { renderSizes(); renderVessels(); render(); }; el.split.onchange = () => { if(el.split.checked) $("splitGroups").classList.remove("active"); render(); }; el.vesselSearch.addEventListener("input", render);
+    $("splitGroups").onclick = () => { $("splitGroups").classList.toggle("active"); if($("splitGroups").classList.contains("active")) el.split.checked=false; render(); };
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
     el.deselectAllVessels.onclick = () => { selectedVessels.clear(); el.split.checked = false; render(); };
     $("allSpecies").onclick = () => { focusedSpecies = focusedSize = focusedProductGroup = ""; selected = new Set(rows.map(row => row.species)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true; renderSpecies(); renderSizes(); renderVessels(); render(); };

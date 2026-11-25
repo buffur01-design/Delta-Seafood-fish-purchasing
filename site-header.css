@@ -15,12 +15,11 @@
   background:linear-gradient(to bottom,#cfe8f3 0%,#fff 100%);
 }
 
-.navbar .logo{display:block;flex:0 0 auto}
+.navbar .logo{display:block;position:absolute;left:48px;flex:0 0 auto}
 .navbar .logo img{display:block;width:170px;height:auto}
 
 .navbar .site-nav-links{
-  position:absolute;
-  left:calc(50% + 150px);
+  position:static;
   display:flex;
   align-items:center;
   gap:38px;
@@ -57,7 +56,8 @@
   }
 
   .navbar.standard-header .logo{
-    position:static!important;
+    position:absolute!important;
+    left:24px!important;
     order:initial!important;
     align-self:auto!important;
     margin:0!important;

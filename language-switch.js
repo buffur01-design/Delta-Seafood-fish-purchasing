@@ -59,8 +59,8 @@
 
   function applyLanguage(language){
   const commonLabels = {
-    en:{home:"Home", products:"Products", markets:"Markets", facilities:"Facilities", contact:"Contact", links:"Links", esg:"ESG", jobs:"Jobs"},
-    fo:{home:"Heim", products:"Vørur", markets:"Marknaðir", facilities:"Virkir", contact:"Samband", links:"Leinkjur", esg:"ESG", jobs:"Størv"}
+    en:{home:"Home", products:"Products", markets:"Teyggjan", facilities:"Facilities", contact:"Contact", links:"Links", esg:"ESG", jobs:"Jobs"},
+    fo:{home:"Heim", products:"Vørur", markets:"Teyggjan", facilities:"Virkir", contact:"Samband", links:"Leinkjur", esg:"ESG", jobs:"Størv"}
   }[language];
 
   document.querySelectorAll('.navbar a[href="./"], .navbar a[href="index.html"]').forEach(link => {

@@ -14,6 +14,7 @@ import logging
 import re
 import sys
 import time
+import unicodedata
 from dataclasses import asdict, dataclass, fields, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -46,6 +47,7 @@ class Observation:
     certification: str
     vessel: str
     registration: str
+    ship_group: str
     minimum_price_dkk_kg: float | None
     quantity_kg: float
     sample_percentage: float | None
@@ -91,6 +93,31 @@ def split_product_group(label: str) -> tuple[str, str, str]:
 def split_vessel(label: str) -> tuple[str, str]:
     match = re.match(r"^(.*?)\s+-\s+(.+)$", clean(label))
     return (clean(match.group(1)), clean(match.group(2))) if match else (clean(label), "")
+
+
+def identity_key(value: str) -> str:
+    value = unicodedata.normalize("NFKD", clean(value)).encode("ascii", "ignore").decode().upper()
+    parts = re.findall(r"[A-Z]+|\d+", value.split("/")[0])
+    return "".join(str(int(part)) if part.isdigit() else part for part in parts)
+
+
+def load_ship_groups(directory: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Build the same vessel-to-group lookup used by the Teyggjan dataset."""
+    by_identity: dict[str, str] = {}
+    name_groups: dict[str, set[str]] = {}
+    for path in sorted(directory.glob("20*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for row in payload.get("rows", []):
+            if len(row) < 5:
+                continue
+            _, _, group, vessel, identity = row[:5]
+            key = identity_key(identity)
+            if group and key:
+                by_identity[key] = group
+            if group and vessel:
+                name_groups.setdefault(clean(vessel).upper(), set()).add(group)
+    by_name = {name: next(iter(groups)) for name, groups in name_groups.items() if len(groups) == 1}
+    return by_identity, by_name
 
 
 def discover_sales(html: str) -> dict[str, str]:
@@ -170,7 +197,7 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
                 species, size_group, certification = split_product_group(product_group)
                 pending = Observation(
                     sale_id, sale_date, sale_time, product_group, species, size_group,
-                    certification, vessel, registration, price, quantity, None, "", "", "", "",
+                    certification, vessel, registration, "", price, quantity, None, "", "", "", "",
                     section_index, len(observations) + 1, source_url, collected_utc,
                 )
                 observations.append(pending)
@@ -222,7 +249,7 @@ def write_outputs(rows: list[dict], csv_path: Path, json_path: Path) -> None:
         writer = csv.DictWriter(handle, fieldnames=names)
         writer.writeheader(); writer.writerows(ordered)
     temporary.replace(csv_path)
-    payload = {"version": 2, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "fields": names, "rows": ordered}
+    payload = {"version": 3, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "fields": names, "rows": ordered}
     temporary_json = json_path.with_suffix(".json.tmp")
     temporary_json.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     temporary_json.replace(json_path)
@@ -259,6 +286,9 @@ def main(argv=None) -> int:
     existing = read_existing(csv_path)
     replaced = {item.sale_id for item in collected}
     merged = [row for row in existing if row.get("sale_id") not in replaced] + [asdict(item) for item in collected]
+    by_identity, by_name = load_ship_groups(Path("data/vessels"))
+    for row in merged:
+        row["ship_group"] = by_identity.get(identity_key(row.get("registration", ""))) or by_name.get(clean(row.get("vessel", "")).upper(), "Ikki upplýst")
     write_outputs(merged, csv_path, json_path)
     LOG.info("Saved %s total observations to %s", len(merged), output)
     return 0
