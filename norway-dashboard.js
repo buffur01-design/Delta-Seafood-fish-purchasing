@@ -44,12 +44,13 @@
     $(id).innerHTML=values.map((value,index)=>`<label class="filter-side-row ${selectedValues.has(value)?"active":""}"><input type="checkbox" value="${value.replaceAll('"','&quot;')}" ${selectedValues.has(value)?"checked":""}><i style="--dot:${palette[value]||palette[index]||"#64748b"}"></i><span>${value}</span><strong>${fmt.format(totals.get(value)||0)} kg</strong></label>`).join("");
     $(id).querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedValues.add(input.value):selectedValues.delete(input.value);render()});
   }
+  function renderMasterFilter(id,values,selectedValues){const input=$(id),count=values.filter(value=>selectedValues.has(value)).length;input.checked=count===values.length;input.indeterminate=count>0&&count<values.length;input.onclick=event=>event.stopPropagation();input.onchange=()=>{values.forEach(value=>input.checked?selectedValues.add(value):selectedValues.delete(value));render()}}
   function renderFilters(){
     const gearValues=catchGroups.map(([title])=>title.split(" · ")[0]),conditions=["Ferskt","Fryst"];
     if(!filtersInitialized){gearValues.forEach(value=>selectedGearGroups.add(value));conditions.forEach(value=>selectedConditions.add(value));filtersInitialized=true}
     const gearTotals=new Map(),conditionTotals=new Map();
     periodSpeciesRows().forEach(row=>{if(selectedConditions.has(row.condition)){const group=gearGroup(row.catch_method);gearTotals.set(group,(gearTotals.get(group)||0)+row.quantity_kg)}if(selectedGearGroups.has(gearGroup(row.catch_method)))conditionTotals.set(row.condition,(conditionTotals.get(row.condition)||0)+row.quantity_kg)});
-    renderChoiceFilter("catchOptions",gearValues,selectedGearGroups,gearTotals);renderChoiceFilter("conditionOptions",conditions,selectedConditions,conditionTotals);renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
+    renderMasterFilter("catchMaster",gearValues,selectedGearGroups);renderMasterFilter("conditionMaster",conditions,selectedConditions);renderChoiceFilter("catchOptions",gearValues,selectedGearGroups,gearTotals);renderChoiceFilter("conditionOptions",conditions,selectedConditions,conditionTotals);renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
   }
   function renderSizes(){
     const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
