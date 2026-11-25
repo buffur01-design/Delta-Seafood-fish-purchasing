@@ -28,7 +28,7 @@ LOG = logging.getLogger("norway")
 URL_TEMPLATE = "https://register.fiskeridir.no/uttrekk/fangstdata_{year}.csv.zip"
 SOURCE = "https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-yrkesfiske/apne-data-fangstdata-seddel-koblet-med-fartoydata"
 USER_AGENT = "DeltaSeafoodNorwayCollector/1.0 (public open-data aggregation; daily fetch)"
-FIELDS = ["date", "species", "size_group", "ship_group", "quantity_kg", "catch_year"]
+FIELDS = ["date", "species", "size_group", "catch_method", "condition", "quantity_kg", "catch_year"]
 SIZE_LIMITS_KG = {
     "Toskur": [(7.0, 1), (4.0, 2), (2.0, 3), (1.0, 4), (0.3, 5)],
     "Upsi": [(5.0, 1), (3.0, 2), (1.5, 3), (1.2, 4), (0.7, 5), (0.0, 6)],
@@ -137,10 +137,10 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                 names = [name for name in zipped.namelist() if name.lower().endswith(".csv")]
                 if len(names) != 1:
                     raise ValueError(f"Expected one CSV in {url}, found {names}")
-                totals: dict[tuple[str, str, str, str], float] = defaultdict(float)
+                totals: dict[tuple[str, str, str, str, str], float] = defaultdict(float)
                 with zipped.open(names[0]) as raw:
                     reader = csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""), delimiter=";")
-                    required = {"Landingsdato", "Art FAO (kode)", "Størrelsesgruppering (kode)", "Lengdegruppe", "Rundvekt"}
+                    required = {"Landingsdato", "Art FAO (kode)", "Størrelsesgruppering (kode)", "Redskap", "Konserveringsmåte", "Rundvekt"}
                     if not reader.fieldnames or not required.issubset(reader.fieldnames):
                         raise ValueError(f"Unexpected Norwegian CSV schema; missing {required - set(reader.fieldnames or [])}")
                     for row in reader:
@@ -161,11 +161,14 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                         fish_count = number(row.get("Antall stykk", ""))
                         average_kg = kg / fish_count if fish_count > 0 else None
                         group = pdf_size_group(species, row["Størrelsesgruppering (kode)"], average_kg)
-                        ship_group = (row.get("Lengdegruppe") or "Ikki upplýst").strip()
-                        totals[(day.isoformat(), species, group, ship_group)] += kg
+                        catch_method = (row.get("Redskap") or "Ikki upplýst").strip()
+                        raw_condition = (row.get("Konserveringsmåte") or "Ikki upplýst").strip()
+                        lowered = raw_condition.casefold()
+                        condition = "Fryst" if "frys" in lowered else ("Ferskt" if "fersk" in lowered else raw_condition)
+                        totals[(day.isoformat(), species, group, catch_method, condition)] += kg
     if not totals:
         raise ValueError(f"No selected species found in official file for {year}")
-    rows = [[day, species, group, ship_group, round(kg, 3), year] for (day, species, group, ship_group), kg in sorted(totals.items()) if kg > 0]
+    rows = [[day, species, group, catch_method, condition, round(kg, 3), year] for (day, species, group, catch_method, condition), kg in sorted(totals.items()) if kg > 0]
     LOG.info("%s: %s daily species totals", year, len(rows))
     return rows
 
@@ -177,8 +180,8 @@ def load_existing(path: Path) -> tuple[dict, bool]:
     if payload.get("fields") in (["date", "species", "quantity_kg"], ["date", "species", "quantity_kg", "catch_year"], ["date", "species", "size_group", "quantity_kg", "catch_year"]):
         return {"rows": []}, True
     if payload.get("fields") != FIELDS:
-        raise ValueError("Existing Norway dataset has an unexpected schema")
-    if int(payload.get("version", 0)) < 4:
+        return {"rows": []}, True
+    if int(payload.get("version", 0)) < 5:
         return {"rows": []}, True
     return payload, False
 
@@ -200,7 +203,7 @@ def main(argv=None) -> int:
         raise ValueError("The Norway dataset must be downloaded again to add size groups")
     first_year = 2020 if needs_full_rebuild else args.start_year
     refreshed_years = set() if args.export_only else set(range(first_year, args.end_year + 1))
-    retained = [row for row in existing.get("rows", []) if int(row[5]) not in refreshed_years]
+    retained = [row for row in existing.get("rows", []) if int(row[6]) not in refreshed_years]
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/zip"})
     collected: list[list] = []
@@ -208,14 +211,14 @@ def main(argv=None) -> int:
         collected.extend(collect_year(year, session))
     rows = sorted(retained + collected, key=lambda row: (row[0], row[1]))
     payload = {
-        "version": 4,
+        "version": 5,
         "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "source": SOURCE,
         "fields": FIELDS,
         "species": sorted(set(SPECIES.values())),
         "years": sorted({int(row[0][:4]) for row in rows}),
         "rows": rows,
-        "note": "Rundvekt (live weight), grouped by the species-specific kg/fish thresholds in støddir.pdf and official vessel length groups.",
+        "note": "Rundvekt (live weight), grouped by the species-specific kg/fish thresholds in støddir.pdf, fishing gear and fresh/frozen condition.",
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(".json.tmp")
@@ -224,7 +227,7 @@ def main(argv=None) -> int:
     maximum_day = max(row[0] for row in rows)
     cutoff = (dt.date.fromisoformat(maximum_day) - dt.timedelta(days=400)).isoformat()
     latest_payload = {
-        "version": 4,
+        "version": 5,
         "updated_utc": payload["updated_utc"],
         "source": SOURCE,
         "fields": FIELDS,

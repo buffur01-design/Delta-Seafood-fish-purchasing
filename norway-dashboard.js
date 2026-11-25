@@ -9,13 +9,13 @@
   function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){let a="-50%",b="-50%";if(toPercent-fromPercent<12){if(toPercent>85){a="-200%";b="-100%"}else if(fromPercent<15){a="0";b="100%"}else{a="-100%";b="0"}}fromLabel.style.transform=`translateX(${a})`;toLabel.style.transform=`translateX(${b})`}
   let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart, timelineStart=0, timelineEnd=0, timelineMaximum=0;
   const selected = new Set(speciesOrder.slice(0,6));
-  const selectedGroups = new Set();
-  const objectRow = (fields,row) => { const item=Object.fromEntries(fields.map((field,index)=>[field,row[index]])); item.size_group=item.size_group||"Ikki upplýst"; item.ship_group=item.ship_group||"Ikki upplýst"; item.quantity_kg=Number(item.quantity_kg||0); return item; };
+  const selectedCatchMethods = new Set(), selectedConditions = new Set();
+  const objectRow = (fields,row) => { const item=Object.fromEntries(fields.map((field,index)=>[field,row[index]])); item.size_group=item.size_group||"Ikki upplýst"; item.catch_method=item.catch_method||"Ikki upplýst"; item.condition=item.condition||"Ikki upplýst"; item.quantity_kg=Number(item.quantity_kg||0); return item; };
   const formatDate = value => dateFmt.format(new Date(`${value}T12:00:00Z`));
   const monthKey = day => day.slice(0,7);
   const weekKey = day => {const date=new Date(`${day}T12:00:00Z`);const offset=(date.getUTCDay()+6)%7;date.setUTCDate(date.getUTCDate()-offset);return date.toISOString().slice(0,10);};
   const tint = (hex,amount) => {const value=parseInt(hex.slice(1),16),mix=channel=>Math.round(channel+(255-channel)*amount);return `rgb(${mix(value>>16)}, ${mix((value>>8)&255)}, ${mix(value&255)})`;};
-  const datedRows = () => rows.filter(row => row.date >= $("from-date").value && row.date <= $("to-date").value && selected.has(row.species) && selectedGroups.has(row.ship_group));
+  const datedRows = () => rows.filter(row => row.date >= $("from-date").value && row.date <= $("to-date").value && selected.has(row.species) && selectedCatchMethods.has(row.catch_method) && selectedConditions.has(row.condition));
   const seriesKey = row => `${row.species}|||${row.size_group}`;
   const visibleRows = () => datedRows().filter(row => !focusedSize || seriesKey(row)===focusedSize);
 
@@ -23,12 +23,12 @@
     $("species").innerHTML=speciesOrder.map((name,index)=>`<button type="button" class="${selected.has(name)?"active":""}" data-name="${name}" style="--c:${colours[index]}">${name}</button>`).join("");
     $("species").querySelectorAll("button").forEach(button=>button.onclick=()=>{selected.has(button.dataset.name)?selected.delete(button.dataset.name):selected.add(button.dataset.name);focusedSize="";renderSpecies();render();});
   }
-  function renderGroups(){
-    const groups=[...new Set(rows.map(row=>row.ship_group))].sort((a,b)=>a.localeCompare(b,"fo"));
-    if(!selectedGroups.size) groups.forEach(group=>selectedGroups.add(group));
-    $("groupOptions").innerHTML=groups.map(group=>`<label><input type="checkbox" value="${group.replaceAll('"','&quot;')}" ${selectedGroups.has(group)?"checked":""}>${group}</label>`).join("");
-    $("groupOptions").querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedGroups.add(input.value):selectedGroups.delete(input.value);render();});
+  function renderFilter(id,values,selectedValues){
+    if(!selectedValues.size) values.forEach(value=>selectedValues.add(value));
+    $(id).innerHTML=values.map(value=>`<label><input type="checkbox" value="${value.replaceAll('"','&quot;')}" ${selectedValues.has(value)?"checked":""}>${value}</label>`).join("");
+    $(id).querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedValues.add(input.value):selectedValues.delete(input.value);render();});
   }
+  function renderFilters(){renderFilter("catchOptions",[...new Set(rows.map(row=>row.catch_method))].sort((a,b)=>a.localeCompare(b,"fo")),selectedCatchMethods);renderFilter("conditionOptions",[...new Set(rows.map(row=>row.condition))].sort((a,b)=>a.localeCompare(b,"fo")),selectedConditions)}
   function renderSizes(){
     const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
     const groups=[...totals].sort((a,b)=>b[1]-a[1]);
@@ -44,8 +44,7 @@
     chart.config.type=metric==="total"||sizeMode?"bar":"line";
     chart.options.scales.x.stacked=sizeMode;chart.options.scales.y.stacked=sizeMode;
     chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
-    const splitGroups=$("splitGroups").classList.contains("active");
-    const lineKey=row=>sizeMode?`${row.species}|||${row.size_group}${splitGroups?`|||${row.ship_group}`:""}`:`${row.species}${splitGroups?`|||${row.ship_group}`:""}`;
+    const lineKey=row=>sizeMode?`${row.species}|||${row.size_group}`:row.species;
     const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species}])).values()];
     chart.data.labels=metric==="total"?series.map(item=>item.label):keys.map(key=>monthly?key:formatDate(key));
     if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:series.map(item=>data.filter(row=>lineKey(row)===item.key).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:series.map(item=>colours[speciesOrder.indexOf(item.species)])}];
@@ -54,7 +53,7 @@
     }
     chart.update();
     const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar${focusedSize?` · ${focusedSize.replace("|||"," · ")}`:""}`;
-    $("rows").innerHTML=data.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.quantity_kg-a.quantity_kg).slice(0,1200).map(row=>`<tr><td>${formatDate(row.date)}</td><td>${row.species}</td><td>${row.size_group}</td><td>${row.ship_group}</td><td>${fmt.format(row.quantity_kg)}</td></tr>`).join("");
+    $("rows").innerHTML=data.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.quantity_kg-a.quantity_kg).slice(0,1200).map(row=>`<tr><td>${formatDate(row.date)}</td><td>${row.species}</td><td>${row.size_group}</td><td>${row.catch_method}</td><td>${row.condition}</td><td>${fmt.format(row.quantity_kg)}</td></tr>`).join("");
   }
   async function ensureFullHistory(){
     if(fullLoaded || $("from-date").value>=latestStart)return;
@@ -109,9 +108,8 @@
         }
       }
     });
-    $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); renderGroups(); setupTimeline(); render();
+    $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); renderFilters(); setupTimeline(); render();
     $("allSpecies").onclick=()=>{selected.clear();speciesOrder.forEach(name=>selected.add(name));focusedSize="";renderSpecies();render()};
     $("metrics").querySelectorAll("button").forEach(button=>button.onclick=()=>{metric=button.dataset.metric;$("metrics").querySelectorAll("button").forEach(item=>item.classList.toggle("active",item===button));render()});
-    $("splitGroups").onclick=()=>{$("splitGroups").classList.toggle("active");render()};
   }).catch(error=>{$("status").textContent=`Norsku tølini kundu ikki vísast: ${error.message}`;$("updated").textContent="Tøl ikki tøk"});
 })();
