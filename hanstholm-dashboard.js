@@ -37,7 +37,7 @@
   }
   function fitTimelineWindow(){const from=Number($("rangeFrom").value),to=Number($("rangeTo").value),span=Math.max(1,to-from);timelineStart=Math.max(0,from-span);timelineEnd=Math.min(timelineMaximum,to+Math.max(1,Math.round(span*.15)));[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=timelineStart;input.max=timelineEnd});$("months").innerHTML=`<span>${dates[timelineStart]?dates[timelineStart].slice(0,7):""}</span><span>${dates[timelineEnd]?dates[timelineEnd].slice(0,7):""}</span>`}
   function setupTimeline(){
-    const maximum=Math.max(0,dates.length-1);timelineMaximum=maximum;$("rangeFrom").value=Math.max(0,maximum-89);$("rangeTo").value=maximum;fitTimelineWindow();updateTimeline();[$("rangeFrom"),$("rangeTo")].forEach(input=>input.oninput=()=>{fitTimelineWindow();updateTimeline();renderSpecies();render()});
+    const maximum=Math.max(0,dates.length-1);timelineMaximum=maximum;$("rangeFrom").value=Math.max(0,maximum-89);$("rangeTo").value=maximum;fitTimelineWindow();updateTimeline();[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{updateTimeline();renderSpecies();render()};input.onchange=()=>{fitTimelineWindow();updateTimeline();renderSpecies();render()}});
   }
   fetch("data/hanstholm/hanstholm.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json()}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row));vessels=payload.vessels.map(row=>objectRow(payload.vessel_fields,row));dates=[...new Set(rows.map(row=>row.auction_date))].sort();if(!dates.length)throw new Error("Eingi tøl eru í dátusavninum");

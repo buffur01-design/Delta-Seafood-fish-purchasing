@@ -597,7 +597,6 @@
     else to=Math.max(to,from+1);
     elements.from.value=dayToDate(from);
     elements.to.value=dayToDate(to);
-    fitTimelineWindow(from,to);
     updateTimeline();
     queueTimelineRender();
   }
@@ -948,6 +947,8 @@
       elements.timelineFrom.addEventListener("input",()=>moveTimelineHandle("from"));
       elements.timelineTo.addEventListener("input",()=>moveTimelineHandle("to"));
       [elements.timelineFrom,elements.timelineTo].forEach(input=>input.addEventListener("change",()=>{
+        fitTimelineWindow(dateToDay(elements.from.value),dateToDay(elements.to.value));
+        updateTimeline();
         if(elements.splitVessels.checked) loadVesselYears(elements.from.value,elements.to.value,quantityChart).finally(render);
         else render();
       }));

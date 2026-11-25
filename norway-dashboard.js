@@ -82,7 +82,7 @@
     const maximum=Math.round((new Date(`${maxDate}T12:00:00Z`)-new Date(`${minDate}T12:00:00Z`))/86400000);
     timelineMaximum=maximum;$("rangeTo").value=maximum;$("rangeFrom").value=Math.max(0,maximum-89);fitTimelineWindow();
     updateTimeline();
-    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{fitTimelineWindow();updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
+    [$("rangeFrom"),$("rangeTo")].forEach(input=>{input.oninput=()=>{updateTimeline();render()};input.onchange=async()=>{fitTimelineWindow();updateTimeline();await ensureFullHistory();render()};});
   }
   fetch("data/norway/norway-latest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();}).then(payload=>{
     rows=payload.rows.map(row=>objectRow(payload.fields,row)); minDate=payload.min_date; maxDate=payload.max_date; latestStart=payload.latest_start;
