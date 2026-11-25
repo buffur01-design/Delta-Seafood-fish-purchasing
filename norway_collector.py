@@ -29,6 +29,20 @@ URL_TEMPLATE = "https://register.fiskeridir.no/uttrekk/fangstdata_{year}.csv.zip
 SOURCE = "https://www.fiskeridir.no/statistikk-tall-og-analyse/data-og-statistikk-om-yrkesfiske/apne-data-fangstdata-seddel-koblet-med-fartoydata"
 USER_AGENT = "DeltaSeafoodNorwayCollector/1.0 (public open-data aggregation; daily fetch)"
 FIELDS = ["date", "species", "size_group", "quantity_kg", "catch_year"]
+SIZE_LIMITS_KG = {
+    "Toskur": [(7.0, 1), (4.0, 2), (2.0, 3), (1.0, 4), (0.3, 5)],
+    "Upsi": [(5.0, 1), (3.0, 2), (1.5, 3), (1.2, 4), (0.7, 5), (0.0, 6)],
+    "Hýsa": [(2.0, 1), (1.0, 2), (0.5, 3), (0.3, 4), (0.0, 5)],
+    "Hvítingur": [(1.0, 1), (0.0, 2)],
+    "Longa": [(6.5, 1), (3.0, 2), (2.0, 3), (1.0, 4), (0.0, 5)],
+    "Blálonga": [(3.5, 1), (2.2, 2), (1.0, 3), (0.0, 4)],
+    "Svartkalvi": [(4.0, 1), (3.0, 2), (2.0, 3), (1.0, 4), (0.0, 5)],
+    "Kongafiskur": [(3.0, 1), (1.0, 2), (0.7, 3), (0.5, 4), (0.2, 5)],
+    "Brosma": [(3.5, 1), (2.0, 2), (1.0, 3), (0.0, 4)],
+    "Havtaska": [(10.0, 1), (5.0, 2), (3.0, 3), (1.0, 4), (0.0, 5)],
+    "Reyðsprøka": [(2.0, 1), (1.0, 2), (0.0, 3)],
+    "Kalvi": [(40.0, 1), (10.0, 2), (4.0, 3), (1.0, 4)],
+}
 SPECIES = {
     "BLI": "Blálonga",
     "USK": "Brosma",
@@ -77,6 +91,38 @@ def size_group(value: str) -> str:
     return f"{lower}–{upper} {unit}"
 
 
+def representative_weight_kg(value: str) -> float | None:
+    """Estimate kg/fish from the Norwegian seven-digit commercial size code."""
+    code = (value or "").strip()
+    if len(code) != 7 or not code.isdigit() or code.startswith("3"):
+        return None
+    method, lower, upper = code[0], int(code[1:4]), int(code[4:])
+    if method == "1":  # fish per kg; invert the representative count
+        usable_upper = upper if upper not in (0, 999) else lower
+        count = (lower + usable_upper) / 2 if lower else usable_upper
+        return 1 / count if count else None
+    factor = {"4": 0.1, "7": 0.001, "9": 1.0}.get(method)
+    if factor is None:
+        return None
+    if upper in (0, 999):
+        representative = lower
+    elif lower == 0:
+        representative = upper / 2
+    else:
+        representative = (lower + upper) / 2
+    return representative * factor
+
+
+def pdf_size_group(species: str, norwegian_code: str, weight_kg: float | None = None) -> str:
+    weight = weight_kg if weight_kg and weight_kg > 0 else representative_weight_kg(norwegian_code)
+    if weight is None:
+        return "Stødd 0 · Ikki skildur fiskur"
+    for minimum, category in SIZE_LIMITS_KG[species]:
+        if weight >= minimum:
+            return f"Stødd {category}"
+    return "Stødd 0 · Ikki skildur fiskur"
+
+
 def collect_year(year: int, session: requests.Session) -> list[list]:
     url = URL_TEMPLATE.format(year=year)
     LOG.info("Downloading %s", url)
@@ -111,8 +157,11 @@ def collect_year(year: int, session: requests.Session) -> list[list]:
                                 raise ValueError(f"Unexpected landing date: {raw_date!r}") from exc
                         if day < dt.date(2020, 1, 1):
                             continue
-                        group = size_group(row["Størrelsesgruppering (kode)"])
-                        totals[(day.isoformat(), species, group)] += number(row["Rundvekt"])
+                        kg = number(row["Rundvekt"])
+                        fish_count = number(row.get("Antall stykk", ""))
+                        average_kg = kg / fish_count if fish_count > 0 else None
+                        group = pdf_size_group(species, row["Størrelsesgruppering (kode)"], average_kg)
+                        totals[(day.isoformat(), species, group)] += kg
     if not totals:
         raise ValueError(f"No selected species found in official file for {year}")
     rows = [[day, species, group, round(kg, 3), year] for (day, species, group), kg in sorted(totals.items()) if kg > 0]
@@ -128,6 +177,8 @@ def load_existing(path: Path) -> tuple[dict, bool]:
         return {"rows": []}, True
     if payload.get("fields") != FIELDS:
         raise ValueError("Existing Norway dataset has an unexpected schema")
+    if int(payload.get("version", 0)) < 3:
+        return {"rows": []}, True
     return payload, False
 
 
@@ -156,14 +207,14 @@ def main(argv=None) -> int:
         collected.extend(collect_year(year, session))
     rows = sorted(retained + collected, key=lambda row: (row[0], row[1]))
     payload = {
-        "version": 2,
+        "version": 3,
         "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "source": SOURCE,
         "fields": FIELDS,
         "species": sorted(set(SPECIES.values())),
         "years": sorted({int(row[0][:4]) for row in rows}),
         "rows": rows,
-        "note": "Rundvekt (live weight). Very recent data may temporarily include both landing and final-sales quantities.",
+        "note": "Rundvekt (live weight), grouped by the species-specific kg/fish thresholds in støddir.pdf.",
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(".json.tmp")
@@ -172,7 +223,7 @@ def main(argv=None) -> int:
     maximum_day = max(row[0] for row in rows)
     cutoff = (dt.date.fromisoformat(maximum_day) - dt.timedelta(days=400)).isoformat()
     latest_payload = {
-        "version": 2,
+        "version": 3,
         "updated_utc": payload["updated_utc"],
         "source": SOURCE,
         "fields": FIELDS,
