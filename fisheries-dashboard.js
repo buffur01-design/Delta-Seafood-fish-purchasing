@@ -276,6 +276,15 @@
   let vesselLoadError="";
   const millisecondsPerDay=86400000;
   const dateTickLimit=(count,width)=>Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
+  function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){
+    let fromShift="-50%",toShift="-50%";
+    if(toPercent-fromPercent<12){
+      if(toPercent>85){fromShift="-200%";toShift="-100%";}
+      else if(fromPercent<15){fromShift="0";toShift="100%";}
+      else{fromShift="-100%";toShift="0";}
+    }
+    fromLabel.style.transform=`translateX(${fromShift})`;toLabel.style.transform=`translateX(${toShift})`;
+  }
   let timelineFirstDay=0;
   let timelineLastDay=0;
   let timelineWindowStart=0;
@@ -544,6 +553,7 @@
     elements.timelineSelection.style.width=`${Math.max(0,toPosition-fromPosition)}%`;
     elements.timelineFromLabel.style.left=`${fromPosition}%`;
     elements.timelineToLabel.style.left=`${toPosition}%`;
+    separateTimelineLabels(elements.timelineFromLabel,elements.timelineToLabel,fromPosition,toPosition);
     const formatter=new Intl.DateTimeFormat(locale,{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
     elements.timelineFromLabel.value=formatter.format(new Date(from*millisecondsPerDay));
     elements.timelineToLabel.value=formatter.format(new Date(to*millisecondsPerDay));

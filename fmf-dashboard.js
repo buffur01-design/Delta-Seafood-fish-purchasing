@@ -16,6 +16,15 @@
   let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
   const dateTickLimit = (count, width) => Math.max(2, Math.min(count, Math.floor(Math.max(320, width || 900) / 85)));
+  function separateTimelineLabels(fromLabel, toLabel, fromPercent, toPercent) {
+    let fromShift = "-50%", toShift = "-50%";
+    if (toPercent - fromPercent < 12) {
+      if (toPercent > 85) { fromShift = "-200%"; toShift = "-100%"; }
+      else if (fromPercent < 15) { fromShift = "0"; toShift = "100%"; }
+      else { fromShift = "-100%"; toShift = "0"; }
+    }
+    fromLabel.style.transform = `translateX(${fromShift})`; toLabel.style.transform = `translateX(${toShift})`;
+  }
 
   function dateRows() {
     const low = dates[+el.from.value], high = dates[+el.to.value];
@@ -66,7 +75,7 @@
     const p1 = max ? from / max * 100 : 0, p2 = max ? to / max * 100 : 100;
     const fromPos = `calc(${p1}% + ${16 - p1 * .32}px)`, toPos = `calc(${p2}% + ${16 - p2 * .32}px)`;
     el.timeline.style.setProperty("--from", fromPos); el.timeline.style.setProperty("--to", `calc(${100 - p2}% + ${p2 * .32}px)`);
-    el.fromB.textContent = dates[from] || ""; el.toB.textContent = dates[to] || ""; el.fromB.style.left = fromPos; el.toB.style.left = toPos;
+    el.fromB.textContent = dates[from] || ""; el.toB.textContent = dates[to] || ""; el.fromB.style.left = fromPos; el.toB.style.left = toPos; separateTimelineLabels(el.fromB, el.toB, p1, p2);
   }
   function renderGraphInfo(data, selectedData, chartNames, lineName) {
     const vesselTotals = new Map();

@@ -5,6 +5,7 @@
   const fmt=new Intl.NumberFormat("fo-FO",{maximumFractionDigits:0});
   const dateFmt=new Intl.DateTimeFormat("fo-FO",{day:"2-digit",month:"2-digit",year:"numeric"});
   const dateTickLimit=(count,width)=>Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
+  function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){let a="-50%",b="-50%";if(toPercent-fromPercent<12){if(toPercent>85){a="-200%";b="-100%"}else if(fromPercent<15){a="0";b="100%"}else{a="-100%";b="0"}}fromLabel.style.transform=`translateX(${a})`;toLabel.style.transform=`translateX(${b})`}
   let rows=[],vessels=[],dates=[],speciesOrder=[],selected=new Set(),metric="quantity_kg",chart;
   const objectRow=(fields,row)=>Object.fromEntries(fields.map((field,index)=>[field,row[index]]));
   const displayDate=value=>dateFmt.format(new Date(`${value}T12:00:00Z`));
@@ -32,7 +33,7 @@
   function updateTimeline(){
     const from=$("rangeFrom"),to=$("rangeTo"),maximum=Number(to.max)||1;if(Number(from.value)>Number(to.value))from.value=to.value;
     $("from-date").value=dates[Number(from.value)];$("to-date").value=dates[Number(to.value)];const left=Number(from.value)/maximum*100,right=100-Number(to.value)/maximum*100;
-    $("timeline").style.setProperty("--from",`calc(18px + (100% - 36px) * ${left/100})`);$("timeline").style.setProperty("--to",`calc(18px + (100% - 36px) * ${right/100})`);$("fromBubble").style.left=`calc(18px + (100% - 36px) * ${left/100})`;$("toBubble").style.left=`calc(18px + (100% - 36px) * ${Number(to.value)/maximum})`;$("fromBubble").textContent=displayDate($("from-date").value);$("toBubble").textContent=displayDate($("to-date").value);
+    const toPercent=Number(to.value)/maximum*100;$("timeline").style.setProperty("--from",`calc(18px + (100% - 36px) * ${left/100})`);$("timeline").style.setProperty("--to",`calc(18px + (100% - 36px) * ${right/100})`);$("fromBubble").style.left=`calc(18px + (100% - 36px) * ${left/100})`;$("toBubble").style.left=`calc(18px + (100% - 36px) * ${toPercent/100})`;$("fromBubble").textContent=displayDate($("from-date").value);$("toBubble").textContent=displayDate($("to-date").value);separateTimelineLabels($("fromBubble"),$("toBubble"),left,toPercent);
   }
   function setupTimeline(){
     const maximum=Math.max(0,dates.length-1);[$("rangeFrom"),$("rangeTo")].forEach(input=>{input.min=0;input.max=maximum});$("rangeFrom").value=Math.max(0,maximum-89);$("rangeTo").value=maximum;$("months").innerHTML=[...new Set(dates.map(day=>day.slice(0,7)))].map(month=>`<span>${month}</span>`).join("");updateTimeline();[$("rangeFrom"),$("rangeTo")].forEach(input=>input.oninput=()=>{updateTimeline();renderSpecies();render()});
