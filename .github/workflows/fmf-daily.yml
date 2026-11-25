@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Python
-        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]')
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]') || contains(github.event.head_commit.message, '[refresh-fmf]')
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -34,11 +34,11 @@ jobs:
           cache-dependency-path: requirements-fmf.txt
 
       - name: Install collector dependencies
-        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]')
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]') || contains(github.event.head_commit.message, '[refresh-fmf]')
         run: pip install -r requirements-fmf.txt
 
       - name: Collect latest FMF telephone auctions
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-fmf]')
         shell: bash
         run: |
           for attempt in 1 2 3; do
@@ -98,7 +98,7 @@ jobs:
           exit 1
 
       - name: Commit updated fisheries data
-        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]')
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-norway]') || contains(github.event.head_commit.message, '[refresh-fmf]')
         shell: bash
         run: |
           git config user.name "github-actions[bot]"

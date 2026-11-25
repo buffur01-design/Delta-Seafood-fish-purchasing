@@ -14,7 +14,7 @@ import logging
 import re
 import sys
 import time
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -48,6 +48,7 @@ class Observation:
     registration: str
     minimum_price_dkk_kg: float | None
     quantity_kg: float
+    sample_percentage: float | None
     fishing_area_method: str
     fishing_start_date: str
     landing_location: str
@@ -121,6 +122,7 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
     product_group = ""
     section_index = 0
     pending: Observation | None = None
+    expanded_parents: set[int] = set()
 
     for row in soup.find_all("tr"):
         values = cells(row)
@@ -128,7 +130,7 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
             continue
         first = values[0]
         # FMF section header: product/size, empty columns, MP, Nøgd.
-        if len(values) >= 5 and clean(values[3]).upper() == "MP" and clean(values[4]).lower().startswith("nøgd"):
+        if first and len(values) >= 5 and clean(values[3]).upper() == "MP" and clean(values[4]).lower().startswith("nøgd"):
             product_group = first
             section_index += 1
             pending = None
@@ -136,6 +138,30 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
         if not product_group or "samantalt" in first.lower():
             pending = None
             continue
+        # A Stikkað offer is followed by its sample distribution: size, %, MP and kg.
+        # Replace the parent total with these components so quantities are not counted twice.
+        if pending and "stikka" in product_group.lower() and len(values) >= 5:
+            sample_label = clean(values[1])
+            percentage = number(values[2])
+            sample_price = number(values[3])
+            sample_quantity = number(re.sub(r"\s*kg\s*$", "", values[4], flags=re.I))
+            if sample_label and re.search(r"\s\d+(?:\s+MSC)?$", sample_label, re.I) and sample_quantity is not None:
+                if id(pending) not in expanded_parents:
+                    observations = [item for item in observations if item is not pending]
+                    expanded_parents.add(id(pending))
+                species, size_group, certification = split_product_group(sample_label)
+                observations.append(replace(
+                    pending,
+                    product_group=sample_label,
+                    species=species,
+                    size_group=size_group,
+                    certification=certification,
+                    minimum_price_dkk_kg=sample_price,
+                    quantity_kg=sample_quantity,
+                    sample_percentage=percentage,
+                    row_index=len(observations) + 1,
+                ))
+                continue
         # Vessel offer row: vessel, ..., minimum price, quantity.
         if len(values) >= 5:
             price, quantity = number(values[3]), number(values[4])
@@ -144,7 +170,7 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
                 species, size_group, certification = split_product_group(product_group)
                 pending = Observation(
                     sale_id, sale_date, sale_time, product_group, species, size_group,
-                    certification, vessel, registration, price, quantity, "", "", "", "",
+                    certification, vessel, registration, price, quantity, None, "", "", "", "",
                     section_index, len(observations) + 1, source_url, collected_utc,
                 )
                 observations.append(pending)
@@ -167,6 +193,14 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
                     day = dt.datetime.strptime(match.group(1), "%d-%m-%Y").date().isoformat()
                     pending.landing_datetime = f"{day}T{match.group(2) or '00:00'}"
 
+    for item in observations:
+        if "stikka" in item.species.lower() and item.sample_percentage is None:
+            base_label = re.sub(r"\s*-\s*Stikka\S*", "", item.product_group, flags=re.I)
+            species, _, certification = split_product_group(base_label)
+            item.species = species
+            item.size_group = "Stikkað (einki sýni)"
+            item.certification = certification
+
     if not observations:
         raise ValueError(f"No vessel observations found in FMF sale {sale_id}")
     return observations
@@ -188,7 +222,7 @@ def write_outputs(rows: list[dict], csv_path: Path, json_path: Path) -> None:
         writer = csv.DictWriter(handle, fieldnames=names)
         writer.writeheader(); writer.writerows(ordered)
     temporary.replace(csv_path)
-    payload = {"version": 1, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "fields": names, "rows": ordered}
+    payload = {"version": 2, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "fields": names, "rows": ordered}
     temporary_json = json_path.with_suffix(".json.tmp")
     temporary_json.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     temporary_json.replace(json_path)
