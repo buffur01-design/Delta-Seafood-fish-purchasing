@@ -62,7 +62,7 @@
     el.timeline.style.setProperty("--from", fromPos); el.timeline.style.setProperty("--to", `calc(${100 - p2}% + ${p2 * .32}px)`);
     el.fromB.textContent = dates[from] || ""; el.toB.textContent = dates[to] || ""; el.fromB.style.left = fromPos; el.toB.style.left = toPos;
   }
-  function renderGraphInfo(data, chartNames, lineName) {
+  function renderGraphInfo(data, selectedData, chartNames, lineName) {
     const vesselTotals = new Map();
     const sizeTotals = new Map();
     data.forEach(row => {
@@ -70,8 +70,8 @@
       const item = vesselTotals.get(key) || { key, vessel: row.vessel, registration: row.registration || "", kg: 0 };
       item.kg += Number(row.quantity_kg || 0);
       vesselTotals.set(key, item);
-      sizeTotals.set(row.product_group, (sizeTotals.get(row.product_group) || 0) + Number(row.quantity_kg || 0));
     });
+    selectedData.forEach(row => sizeTotals.set(row.product_group, (sizeTotals.get(row.product_group) || 0) + Number(row.quantity_kg || 0)));
     const query = el.vesselSearch.value.trim().toLocaleLowerCase("fo");
     const vessels = [...vesselTotals.values()].filter(item => `${item.vessel} ${item.registration}`.toLocaleLowerCase("fo").includes(query)).sort((a, b) => Number(selectedVessels.has(b.key)) - Number(selectedVessels.has(a.key)) || b.kg - a.kg || a.vessel.localeCompare(b.vessel, "fo"));
     const sizes = [...sizeTotals].sort((a, b) => b[1] - a[1]);
@@ -86,10 +86,11 @@
   }
   function render() {
     updateTimeline(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
-    const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (el.split.checked ? row.vessel : row.species);
+    const singleVessel = selectedVessels.size === 1;
+    const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (el.split.checked && !singleVessel ? row.vessel : row.species);
     const totalKg = name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0);
     const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
-    renderGraphInfo(baseData, names, lineName);
+    renderGraphInfo(baseData, data, names, lineName);
     chart.config.type = metric === "total" ? "bar" : "line";
     if (metric === "total") chart.data = { labels: names, datasets: [{ label: "Kilo tilsamans", data: names.map(name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0)), backgroundColor: names.map((_, i) => colours[i % colours.length]) }] };
     else chart.data = { labels, datasets: names.map((name, index) => ({ label: name, data: labels.map(day => { const matches = data.filter(row => row.sale_date === day && lineName(row) === name); if (metric === "price") { const priced = matches.filter(row => row.minimum_price_dkk_kg !== null && row.minimum_price_dkk_kg !== ""); return priced.length ? priced.reduce((sum, row) => sum + Number(row.minimum_price_dkk_kg), 0) / priced.length : null; } return matches.reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0); }), borderColor: colours[index % colours.length], backgroundColor: colours[index % colours.length] + "22", borderWidth: 2, tension: .18, pointRadius: 2 })) };
