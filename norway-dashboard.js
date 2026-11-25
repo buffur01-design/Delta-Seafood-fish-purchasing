@@ -59,7 +59,13 @@
         responsive:true,
         maintainAspectRatio:false,
         interaction:{mode:"index",intersect:false},
-        plugins:{legend:{display:false},tooltip:{itemSort:(a,b)=>b.parsed.y-a.parsed.y}},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            itemSort:(a,b)=>b.parsed.y-a.parsed.y,
+            filter:item=>Number(item.parsed.y)>0
+          }
+        },
         scales:{
           x:{grid:{display:false},ticks:{maxTicksLimit:12}},
           y:{beginAtZero:true,title:{display:true,text:"Kilo"},ticks:{callback:value=>fmt.format(value)}}
