@@ -48,6 +48,7 @@ class Observation:
     vessel: str
     registration: str
     ship_group: str
+    condition: str
     minimum_price_dkk_kg: float | None
     quantity_kg: float
     sample_percentage: float | None
@@ -118,6 +119,19 @@ def load_ship_groups(directory: Path) -> tuple[dict[str, str], dict[str, str]]:
                 name_groups.setdefault(clean(vessel).upper(), set()).add(group)
     by_name = {name: next(iter(groups)) for name, groups in name_groups.items() if len(groups) == 1}
     return by_identity, by_name
+
+
+def classify_condition(ship_group: str, vessel: str) -> str:
+    """Classify fresh/frozen using Delta Seafood's FMF vessel-group rules."""
+    group = clean(ship_group).upper()
+    name = clean(vessel).upper()
+    if group == "BLK. 2":
+        return "Fryst" if name in {"BRESTIR", "KAPPIN"} else "Ferskt"
+    if group == "BLK. 3":
+        return "Ferskt" if name == "NÚPUR" else "Fryst"
+    if group in {"BLK. 4", "BLK. 4T", "BLK. 5A", "BLK. 5B", "GARNASKIP"}:
+        return "Ferskt"
+    return "Ikki upplýst"
 
 
 def discover_sales(html: str) -> dict[str, str]:
@@ -197,7 +211,7 @@ def parse_report(html: str, sale_id: str, collected_utc: str) -> list[Observatio
                 species, size_group, certification = split_product_group(product_group)
                 pending = Observation(
                     sale_id, sale_date, sale_time, product_group, species, size_group,
-                    certification, vessel, registration, "", price, quantity, None, "", "", "", "",
+                    certification, vessel, registration, "", "", price, quantity, None, "", "", "", "",
                     section_index, len(observations) + 1, source_url, collected_utc,
                 )
                 observations.append(pending)
@@ -246,7 +260,7 @@ def write_outputs(rows: list[dict], csv_path: Path, json_path: Path) -> None:
     ordered = sorted(rows, key=lambda r: (r["sale_date"], r["sale_id"], int(r["section_index"]), int(r["row_index"])))
     temporary = csv_path.with_suffix(".csv.tmp")
     with temporary.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=names)
+        writer = csv.DictWriter(handle, fieldnames=names, lineterminator="\n")
         writer.writeheader(); writer.writerows(ordered)
     temporary.replace(csv_path)
     payload = {"version": 3, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "fields": names, "rows": ordered}
@@ -289,6 +303,7 @@ def main(argv=None) -> int:
     by_identity, by_name = load_ship_groups(Path("data/vessels"))
     for row in merged:
         row["ship_group"] = by_identity.get(identity_key(row.get("registration", ""))) or by_name.get(clean(row.get("vessel", "")).upper(), "Ikki upplýst")
+        row["condition"] = classify_condition(row["ship_group"], row.get("vessel", ""))
     write_outputs(merged, csv_path, json_path)
     LOG.info("Saved %s total observations to %s", len(merged), output)
     return 0

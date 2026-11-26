@@ -13,7 +13,7 @@
   const normalizeSpecies = name => String(name || "").replace(/\s*-\s*Stikkað?$/iu, "").replace(/\s*\(sek\.\)$/iu, "").trim();
   const el = { species: $("species"), sizes: $("sizes"), vessels: $("vessels"), sizeTitle: $("sizeTitle"), vesselTitle: $("vesselTitle"), split: $("splitVessels"), from: $("from"), to: $("to"), fromB: $("fromBubble"), toB: $("toBubble"), months: $("months"), timeline: $("timeline"), summary: $("summary"), body: $("rows"), graphVessels: $("graphVessels"), graphSizes: $("graphSizes"), vesselSearch: $("vesselSearch"), selectAllVessels: $("selectAllVessels"), deselectAllVessels: $("deselectAllVessels"), status: $("status"), content: $("content"), updated: $("updated") };
   let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "", timelineStart = 0, timelineEnd = 0, timelineMaximum = 0;
-  let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set();
+  let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set(), selectedConditions = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
   const dateTickLimit = (count, width) => Math.max(2, Math.min(count, Math.floor(Math.max(320, width || 900) / 85)));
   function separateTimelineLabels(fromLabel, toLabel, fromPercent, toPercent) {
@@ -31,7 +31,7 @@
     return rows.filter(row => row.sale_date >= low && row.sale_date <= high);
   }
   function baseFiltered() {
-    return dateRows().filter(row => selected.has(row.species) && selectedGroups.has(row.ship_group || "Ikki upplýst") && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
+    return dateRows().filter(row => selected.has(row.species) && selectedGroups.has(row.ship_group || "Ikki upplýst") && selectedConditions.has(row.condition || "Ikki upplýst") && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
   }
   function vesselKey(row) { return `${row.vessel}|${row.registration || ""}`; }
   function filtered() {
@@ -54,6 +54,15 @@
     $("groupSection").hidden = !$("splitGroups").checked;
     $("groupOptions").innerHTML = groups.length ? groups.map(([group, kg], index) => `<label class="info-row ${selectedGroups.has(group) ? "is-selected" : ""}"><input class="info-check" type="checkbox" value="${group.replaceAll('"','&quot;')}" ${selectedGroups.has(group) ? "checked" : ""}><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${group}</span><span class="info-value">${fmt(kg)} kg</span></label>`).join("") : '<span class="info-empty">Eingir skipabólkar.</span>';
     $("groupOptions").querySelectorAll("input").forEach(input => input.onchange = () => { input.checked ? selectedGroups.add(input.value) : selectedGroups.delete(input.value); render(); });
+  }
+  function renderConditions() {
+    const source = dateRows().filter(row => selected.has(row.species) && selectedGroups.has(row.ship_group || "Ikki upplýst") && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
+    const totals = new Map();
+    source.forEach(row => { const condition = row.condition || "Ikki upplýst"; totals.set(condition, (totals.get(condition) || 0) + Number(row.quantity_kg || 0)); });
+    const conditions = [...totals].sort((a, b) => b[1] - a[1]);
+    $("conditionSection").hidden = !$("conditionMaster").checked;
+    $("conditionOptions").innerHTML = conditions.map(([condition, kg], index) => `<label class="info-row ${selectedConditions.has(condition) ? "is-selected" : ""}"><input class="info-check" type="checkbox" value="${condition}" ${selectedConditions.has(condition) ? "checked" : ""}><i class="info-dot" style="--dot:${colours[(index + 8) % colours.length]}"></i><span class="info-name">${condition}</span><span class="info-value">${fmt(kg)} kg</span></label>`).join("") || '<span class="info-empty">Eingir upplýsingar.</span>';
+    $("conditionOptions").querySelectorAll("input").forEach(input => input.onchange = () => { input.checked ? selectedConditions.add(input.value) : selectedConditions.delete(input.value); render(); });
   }
   function renderSizes() {
     if (!focusedSpecies) { el.sizeTitle.textContent = "Støddarbólkar"; el.sizes.innerHTML = '<span class="empty">Vel eitt fiskaslag.</span>'; return; }
@@ -108,10 +117,10 @@
     el.graphSizes.innerHTML = sizes.length ? sizes.map(([name, kg], index) => `<div class="info-row size-row"><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${name}</span><span class="info-value">${fmt(kg)} kg</span></div>`).join("") : '<span class="info-empty">Eingir støddarbólkar.</span>';
   }
   function render() {
-    updateTimeline(); renderGroups(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
+    updateTimeline(); renderGroups(); renderConditions(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
     const singleVessel = selectedVessels.size === 1;
     const splitGroups = $("splitGroups").checked;
-    const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (splitGroups ? `${row.species} · ${row.ship_group || "Ikki upplýst"}` : (el.split.checked && !singleVessel ? row.vessel : row.species));
+    const lineName = row => { const base = metric === "size" && !focusedProductGroup ? row.product_group : (splitGroups ? `${row.species} · ${row.ship_group || "Ikki upplýst"}` : (el.split.checked && !singleVessel ? row.vessel : row.species)); return $("conditionMaster").checked ? `${base} · ${row.condition || "Ikki upplýst"}` : base; };
     const totalKg = name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0);
     const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
     renderGraphInfo(baseData, data, names, lineName);
@@ -124,7 +133,7 @@
     else chart.data = { labels, datasets: names.map((name, index) => ({ label: name, data: labels.map(day => { const matches = data.filter(row => row.sale_date === day && lineName(row) === name); if (metric === "price") { const priced = matches.filter(row => row.minimum_price_dkk_kg !== null && row.minimum_price_dkk_kg !== ""); return priced.length ? priced.reduce((sum, row) => sum + Number(row.minimum_price_dkk_kg), 0) / priced.length : null; } return matches.reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0); }), borderColor: colours[index % colours.length], backgroundColor: colours[index % colours.length] + "22", borderWidth: 2, tension: .18, pointRadius: 2 })) };
     chart.options.scales.y.title.text = metric === "price" ? "DKK/kg" : "Nøgd (kg)"; chart.update();
     const kg = data.reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0); el.summary.textContent = `${data.length.toLocaleString("fo")} skrásetingar · ${fmt(kg)} kg`;
-    el.body.innerHTML = data.slice().sort((a, b) => Number(b.quantity_kg || 0) - Number(a.quantity_kg || 0) || a.vessel.localeCompare(b.vessel, "fo")).slice(0, 800).map(row => `<tr><td>${row.sale_date}</td><td><strong>${row.vessel}</strong> ${row.registration}</td><td>${row.species}</td><td>${row.size_group || "—"}</td><td>${row.sample_percentage == null || row.sample_percentage === "" ? "—" : `${fmt(row.sample_percentage)}%`}</td><td>${fmt(row.quantity_kg)}</td><td>${row.minimum_price_dkk_kg == null ? "—" : fmt(row.minimum_price_dkk_kg)}</td><td>${row.fishing_area_method || "—"}</td></tr>`).join("");
+    el.body.innerHTML = data.slice().sort((a, b) => Number(b.quantity_kg || 0) - Number(a.quantity_kg || 0) || a.vessel.localeCompare(b.vessel, "fo")).slice(0, 800).map(row => `<tr><td>${row.sale_date}</td><td><strong>${row.vessel}</strong> ${row.registration}</td><td>${row.species}</td><td>${row.size_group || "—"}</td><td>${row.condition || "Ikki upplýst"}</td><td>${row.sample_percentage == null || row.sample_percentage === "" ? "—" : `${fmt(row.sample_percentage)}%`}</td><td>${fmt(row.quantity_kg)}</td><td>${row.minimum_price_dkk_kg == null ? "—" : fmt(row.minimum_price_dkk_kg)}</td><td>${row.fishing_area_method || "—"}</td></tr>`).join("");
   }
 
   function drillChartToVessels(elements) {
@@ -169,13 +178,14 @@
   }
 
   fetch("data/fmf/fmf_auctions.json", { cache: "no-store" }).then(response => { if (!response.ok) throw Error(`HTTP ${response.status}`); return response.json(); }).then(payload => {
-    rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species), ship_group: row.ship_group || "Ikki upplýst"})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set(["Toskur"]); selectedVessels = new Set(rows.map(vesselKey)); selectedGroups = new Set(rows.map(row => row.ship_group)); el.split.checked = true;
+    rows = payload.rows.map(row => ({...row, species: normalizeSpecies(row.species), ship_group: row.ship_group || "Ikki upplýst", condition: row.condition || "Ikki upplýst"})).filter(row => !excludedSpecies.has(row.species)); dates = [...new Set(rows.map(row => row.sale_date))].sort(); selected = new Set(["Toskur"]); selectedVessels = new Set(rows.map(vesselKey)); selectedGroups = new Set(rows.map(row => row.ship_group)); selectedConditions = new Set(rows.map(row => row.condition)); el.split.checked = true;
     timelineMaximum = Math.max(0, dates.length - 1); [el.from,el.to].forEach(input=>{input.min=0;input.max=timelineMaximum}); el.from.value = Math.max(0, timelineMaximum - 89); el.to.value = timelineMaximum; fitTimelineWindow(); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
     chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false }, ticks: {} }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
     [el.from,el.to].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);renderSizes();renderVessels();render()};input.onchange=()=>{fitTimelineWindow();renderSizes();renderVessels();render()}}); el.split.onchange = () => { if(el.split.checked) $("splitGroups").checked = false; render(); }; el.vesselSearch.addEventListener("input", render);
     $("splitGroups").onchange = () => { if($("splitGroups").checked) el.split.checked = false; render(); };
     $("sizeMaster").onchange = () => { metric = $("sizeMaster").checked ? "size" : "quantity"; $("metrics").querySelectorAll("button").forEach(item => item.classList.toggle("active", item.dataset.metric === metric)); focusedProductGroup = ""; focusedSize = ""; render(); };
+    $("conditionMaster").onchange = render;
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
     el.deselectAllVessels.onclick = () => { selectedVessels.clear(); el.split.checked = false; render(); };
     $("allSpecies").onclick = () => { focusedSpecies = focusedSize = focusedProductGroup = ""; selected = new Set(rows.map(row => row.species)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true; renderSpecies(); renderSizes(); renderVessels(); render(); };
