@@ -99,20 +99,27 @@
     const sizeTotals = new Map();
     data.forEach(row => {
       const key = vesselKey(row);
-      const item = vesselTotals.get(key) || { key, vessel: row.vessel, registration: row.registration || "", kg: 0 };
+      const item = vesselTotals.get(key) || { key, vessel: row.vessel, registration: row.registration || "", shipGroup: row.ship_group || "Ikki upplýst", kg: 0 };
       item.kg += Number(row.quantity_kg || 0);
       vesselTotals.set(key, item);
     });
     selectedData.forEach(row => sizeTotals.set(row.product_group, (sizeTotals.get(row.product_group) || 0) + Number(row.quantity_kg || 0)));
     const query = el.vesselSearch.value.trim().toLocaleLowerCase("fo");
-    const vessels = [...vesselTotals.values()].filter(item => `${item.vessel} ${item.registration}`.toLocaleLowerCase("fo").includes(query)).sort((a, b) => Number(selectedVessels.has(b.key)) - Number(selectedVessels.has(a.key)) || b.kg - a.kg || a.vessel.localeCompare(b.vessel, "fo"));
+    const vessels = [...vesselTotals.values()].filter(item => `${item.vessel} ${item.registration} ${item.shipGroup}`.toLocaleLowerCase("fo").includes(query)).sort((a, b) => a.shipGroup.localeCompare(b.shipGroup, "fo", { numeric: true }) || Number(selectedVessels.has(b.key)) - Number(selectedVessels.has(a.key)) || b.kg - a.kg || a.vessel.localeCompare(b.vessel, "fo"));
     const sizes = [...sizeTotals].sort((a, b) => b[1] - a[1]);
-    el.graphVessels.innerHTML = vessels.length ? vessels.map(item => {
+    const groupedVessels = new Map();
+    vessels.forEach(item => { if (!groupedVessels.has(item.shipGroup)) groupedVessels.set(item.shipGroup, []); groupedVessels.get(item.shipGroup).push(item); });
+    el.graphVessels.innerHTML = vessels.length ? [...groupedVessels].map(([group, items]) => {
+      const selectedCount = items.filter(item => selectedVessels.has(item.key)).length;
+      const header = `<label class="vessel-group-header"><input class="vessel-group-check" type="checkbox" data-group="${group.replaceAll('"', '&quot;')}" ${selectedCount === items.length ? "checked" : ""}><span>${group}</span><small>${selectedCount}/${items.length}</small></label>`;
+      return header + items.map(item => {
       const chartIndex = chartNames.indexOf(item.vessel);
       const colour = chartIndex >= 0 && lineName({ vessel: item.vessel, species: "", product_group: "" }) === item.vessel ? colours[chartIndex % colours.length] : "#9bbdca";
       const checked = selectedVessels.has(item.key);
       return `<label class="info-row ${checked ? "is-selected" : ""}"><input class="info-check" type="checkbox" data-key="${item.key.replaceAll('"', '&quot;')}" ${checked ? "checked" : ""}><i class="info-dot" style="--dot:${colour}"></i><span class="info-name">${item.vessel}${item.registration ? ` · ${item.registration}` : ""}</span><span class="info-value">${fmt(item.kg)} kg</span></label>`;
+      }).join("");
     }).join("") : '<span class="info-empty">Eingi skip í valda tíðarskeiðinum.</span>';
+    el.graphVessels.querySelectorAll(".vessel-group-check").forEach(input => { const groupItems = groupedVessels.get(input.dataset.group) || []; const count = groupItems.filter(item => selectedVessels.has(item.key)).length; input.indeterminate = count > 0 && count < groupItems.length; input.addEventListener("change", () => { groupItems.forEach(item => input.checked ? selectedVessels.add(item.key) : selectedVessels.delete(item.key)); el.split.checked = selectedVessels.size > 0; render(); }); });
     el.graphVessels.querySelectorAll(".info-check").forEach(input => input.addEventListener("change", () => { input.checked ? selectedVessels.add(input.dataset.key) : selectedVessels.delete(input.dataset.key); el.split.checked = selectedVessels.size > 0; render(); }));
     el.graphSizes.innerHTML = sizes.length ? sizes.map(([name, kg], index) => `<div class="info-row size-row"><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${name}</span><span class="info-value">${fmt(kg)} kg</span></div>`).join("") : '<span class="info-empty">Eingir støddarbólkar.</span>';
   }
