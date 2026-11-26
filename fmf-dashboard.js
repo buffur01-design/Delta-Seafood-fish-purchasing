@@ -130,9 +130,14 @@
     updateTimeline(); renderGroups(); renderConditions(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
     const singleVessel = selectedVessels.size === 1;
     const splitGroups = $("splitGroups").checked;
-    const lineName = row => { const base = metric === "size" && !focusedProductGroup ? row.product_group : (splitGroups ? `${row.species} · ${row.ship_group || "Ikki upplýst"}` : (el.split.checked && !singleVessel ? row.vessel : row.species)); return $("conditionMaster").checked ? `${base} · ${row.condition || "Ikki upplýst"}` : base; };
+    const lineName = row => {
+      const parts = [metric === "size" && !focusedProductGroup ? row.product_group : (el.split.checked && !singleVessel ? row.vessel : row.species)];
+      if (splitGroups) parts.push(row.ship_group || "Ikki upplýst");
+      if ($("conditionMaster").checked) parts.push(row.condition || "Ikki upplýst");
+      return parts.join(" · ");
+    };
     const totalKg = name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0);
-    const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
+    const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 60);
     renderGraphInfo(baseData, data, names, lineName);
     chart.config.type = metric === "total" ? "bar" : "line";
     chart.options.scales.x.ticks.maxTicksLimit = metric === "total" ? 12 : dateTickLimit(labels.length, chart.width);
@@ -166,7 +171,8 @@
     }
     if (el.split.checked && !(metric === "size" && !focusedProductGroup)) return;
     if (metric === "size" && !focusedProductGroup) {
-      const match = rows.find(row => row.product_group === clickedLabel);
+      const productLabel = clickedLabel.split(" · ")[0];
+      const match = rows.find(row => row.product_group === productLabel);
       if (!match) return;
       focusedProductGroup = match.product_group;
       focusedSpecies = match.species;
