@@ -175,9 +175,10 @@
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
     [el.from,el.to].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);renderSizes();renderVessels();render()};input.onchange=()=>{fitTimelineWindow();renderSizes();renderVessels();render()}}); el.split.onchange = () => { if(el.split.checked) $("splitGroups").checked = false; render(); }; el.vesselSearch.addEventListener("input", render);
     $("splitGroups").onchange = () => { if($("splitGroups").checked) el.split.checked = false; render(); };
+    $("sizeMaster").onchange = () => { metric = $("sizeMaster").checked ? "size" : "quantity"; $("metrics").querySelectorAll("button").forEach(item => item.classList.toggle("active", item.dataset.metric === metric)); focusedProductGroup = ""; focusedSize = ""; render(); };
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
     el.deselectAllVessels.onclick = () => { selectedVessels.clear(); el.split.checked = false; render(); };
     $("allSpecies").onclick = () => { focusedSpecies = focusedSize = focusedProductGroup = ""; selected = new Set(rows.map(row => row.species)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true; renderSpecies(); renderSizes(); renderVessels(); render(); };
-    $("metrics").querySelectorAll("button").forEach(button => button.onclick = () => { $("metrics").querySelectorAll("button").forEach(item => item.classList.remove("active")); button.classList.add("active"); metric = button.dataset.metric; focusedProductGroup = ""; focusedSize = ""; el.split.checked = false; render(); });
+    $("metrics").querySelectorAll("button").forEach(button => button.onclick = () => { $("metrics").querySelectorAll("button").forEach(item => item.classList.remove("active")); button.classList.add("active"); metric = button.dataset.metric; $("sizeMaster").checked = false; focusedProductGroup = ""; focusedSize = ""; el.split.checked = false; render(); });
   }).catch(error => { el.status.textContent = `FMF dátur kundu ikki lesast: ${error.message}`; el.status.style.color = "#a22"; });
 })();
