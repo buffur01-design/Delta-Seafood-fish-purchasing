@@ -50,7 +50,7 @@
     if(!filtersInitialized){gearValues.forEach(value=>selectedGearGroups.add(value));conditions.forEach(value=>selectedConditions.add(value));filtersInitialized=true}
     const gearTotals=new Map(),conditionTotals=new Map();
     periodSpeciesRows().forEach(row=>{if(selectedConditions.has(row.condition)){const group=gearGroup(row.catch_method);gearTotals.set(group,(gearTotals.get(group)||0)+row.quantity_kg)}if(selectedGearGroups.has(gearGroup(row.catch_method)))conditionTotals.set(row.condition,(conditionTotals.get(row.condition)||0)+row.quantity_kg)});
-    renderChoiceFilter("catchOptions",gearValues,selectedGearGroups,gearTotals);renderChoiceFilter("conditionOptions",conditions,selectedConditions,conditionTotals);renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
+    renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
   }
   function renderSizes(){
     const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
@@ -65,17 +65,17 @@
     const sizeMode=metric==="size", monthly=!sizeMode&&days>400;
     const bucket=day=>sizeMode?weekKey(day):(monthly?monthKey(day):day);
     const keys=[...new Set(data.map(row=>bucket(row.date)))].sort();
-    const splitGear=$("catchMaster").checked,splitCondition=$("conditionMaster").checked;
+    const splitSize=$("sizeMaster").checked,splitGear=$("catchMaster").checked,splitCondition=$("conditionMaster").checked;
     chart.config.type=metric==="total"?"bar":"line";
     chart.options.scales.x.stacked=false;chart.options.scales.y.stacked=false;
     chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
-    const groupBySize=sizeMode||metric==="total";
+    const groupBySize=sizeMode||metric==="total"||splitSize;
     const lineKey=row=>`${groupBySize?`${row.species}|||${row.size_group}`:row.species}${splitGear?`|||${gearGroup(row.catch_method)}`:""}${splitCondition?`|||${row.condition}`:""}`;
     const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species,size:row.size_group}])).values()];
     chart.data.labels=metric==="total"?series.map(item=>item.label):keys.map(key=>monthly?key:formatDate(key));
     if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:series.map(item=>data.filter(row=>lineKey(row)===item.key).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:series.map(item=>sizeColour(item.size)),borderColor:series.map(item=>sizeColour(item.size)),borderWidth:1}];
     else {
-      chart.data.datasets=series.map((item,index)=>{const base=colours[speciesOrder.indexOf(item.species)],colour=splitGear||splitCondition?lineColours[index%lineColours.length]:(sizeMode?sizeColour(item.size):base);return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:colour,backgroundColor:colour+"18",borderWidth:2,tension:.16,pointRadius:monthly?2:1,pointHoverRadius:5,spanGaps:true};});
+      chart.data.datasets=series.map((item,index)=>{const base=colours[speciesOrder.indexOf(item.species)],colour=splitGear||splitCondition?lineColours[index%lineColours.length]:(groupBySize?sizeColour(item.size):base);return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:colour,backgroundColor:colour+"18",borderWidth:2,tension:.16,pointRadius:monthly?2:1,pointHoverRadius:5,spanGaps:true};});
     }
     chart.$breakdownLines=metric==="total"?[]:keys.map(key=>[`Landað tilsamans: ${fmt.format(data.filter(row=>bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0))} kg`]);
     chart.update();
@@ -139,6 +139,6 @@
     $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); setupTimeline(); render();
     $("allSpecies").onclick=()=>{selected.clear();speciesOrder.forEach(name=>selected.add(name));focusedSize="";renderSpecies();render()};
     $("metrics").querySelectorAll("button").forEach(button=>button.onclick=()=>{metric=button.dataset.metric;$("metrics").querySelectorAll("button").forEach(item=>item.classList.toggle("active",item===button));render()});
-    $("catchMaster").onclick=event=>event.stopPropagation();$("conditionMaster").onclick=event=>event.stopPropagation();$("catchMaster").onchange=render;$("conditionMaster").onchange=render;
+    $("sizeMaster").onchange=render;$("catchMaster").onchange=render;$("conditionMaster").onchange=render;
   }).catch(error=>{$("status").textContent=`Norsku tølini kundu ikki vísast: ${error.message}`;$("updated").textContent="Tøl ikki tøk"});
 })();
