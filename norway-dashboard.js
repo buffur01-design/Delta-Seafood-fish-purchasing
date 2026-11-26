@@ -60,12 +60,14 @@
     $("sizes").querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedSizeKeys.add(input.value):selectedSizeKeys.delete(input.value);render()});
   }
   function render(){
+    const splitSize=$("sizeMaster").checked,splitGear=$("catchMaster").checked,splitCondition=$("conditionMaster").checked;
+    $("sizeSection").hidden=!splitSize;$("gearSection").hidden=!splitGear;$("conditionSection").hidden=!splitCondition;
+    const showSidebar=splitSize||splitGear||splitCondition;$("graphInfo").hidden=!showSidebar;$("chartStage").classList.toggle("no-sidebar",!showSidebar);
     renderFilters();renderSizes(); const data=visibleRows();
     const days=(new Date($("to-date").value)-new Date($("from-date").value))/86400000;
     const sizeMode=metric==="size", monthly=!sizeMode&&days>400;
     const bucket=day=>sizeMode?weekKey(day):(monthly?monthKey(day):day);
     const keys=[...new Set(data.map(row=>bucket(row.date)))].sort();
-    const splitSize=$("sizeMaster").checked,splitGear=$("catchMaster").checked,splitCondition=$("conditionMaster").checked;
     chart.config.type=metric==="total"?"bar":"line";
     chart.options.scales.x.stacked=false;chart.options.scales.y.stacked=false;
     chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
