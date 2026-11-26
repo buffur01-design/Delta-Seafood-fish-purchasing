@@ -5,13 +5,14 @@
   const colours = ["#74b5c5","#08752f","#9cb4d6","#dda879","#7650a5","#d19aa2","#b7dce5","#a17b00","#44a98c","#bd5ec8","#91ae16","#62aabd"];
   const sizeColours = ["#64748b","#d1495b","#ed9b40","#3d7ea6","#159d8c","#7b2cbf","#e76f51"];
   const gearColours = ["#0077b6","#f4a261","#2a9d8f","#9b5de5","#e63946","#6c757d"], conditionColours={"Ferskt":"#20a37a","Fryst":"#4b7bec"};
+  const lineColours=["#0077b6","#e63946","#2a9d8f","#f4a261","#7b2cbf","#e76f51","#00a6a6","#d00070","#5a7d00","#6c5ce7","#bc6c25","#0081a7","#ef476f","#118ab2","#06d6a0","#8338ec"];
   const fmt = new Intl.NumberFormat("fo-FO", {maximumFractionDigits:0});
   const dateFmt = new Intl.DateTimeFormat("fo-FO", {day:"2-digit",month:"2-digit",year:"numeric"});
   const dateTickLimit = (count,width) => Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
   function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){let a="-50%",b="-50%";if(toPercent-fromPercent<12){if(toPercent>85){a="-200%";b="-100%"}else if(fromPercent<15){a="0";b="100%"}else{a="-100%";b="0"}}fromLabel.style.transform=`translateX(${a})`;toLabel.style.transform=`translateX(${b})`}
   let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart, timelineStart=0, timelineEnd=0, timelineMaximum=0, filtersInitialized=false;
   const selected = new Set(speciesOrder.slice(0,6));
-  const selectedGearGroups = new Set(), selectedConditions = new Set();
+  const selectedGearGroups = new Set(), selectedConditions = new Set(), selectedSizeKeys = new Set(), knownSizeKeys = new Set();
   const catchGroups = [
     ["Trol (Trawl) · aktive slæberedskaber",["Bunntrål","Bunntrål par","Bomtrål","Flytetrål","Reketrål (herunder sputniktrål)","Krepsetrål","Udefinert trål"]],
     ["Nót (Vod / Not) · indkredsende redskaber",["Snurpenot/ringnot","Landnot","Snurrevad","Udefinert not"]],
@@ -30,7 +31,7 @@
   const periodSpeciesRows = () => rows.filter(row => row.date >= $("from-date").value && row.date <= $("to-date").value && selected.has(row.species));
   const datedRows = () => periodSpeciesRows().filter(row => selectedGearGroups.has(gearGroup(row.catch_method)) && selectedConditions.has(row.condition));
   const seriesKey = row => `${row.species}|||${row.size_group}`;
-  const visibleRows = () => datedRows().filter(row => !focusedSize || seriesKey(row)===focusedSize);
+  const visibleRows = () => datedRows().filter(row => selectedSizeKeys.has(seriesKey(row)));
 
   function renderSpecies(){
     $("species").innerHTML=speciesOrder.map((name,index)=>`<button type="button" class="${selected.has(name)?"active":""}" data-name="${name}" style="--c:${colours[index]}">${name}</button>`).join("");
@@ -44,19 +45,19 @@
     $(id).innerHTML=values.map((value,index)=>`<label class="filter-side-row ${selectedValues.has(value)?"active":""}"><input type="checkbox" value="${value.replaceAll('"','&quot;')}" ${selectedValues.has(value)?"checked":""}><i style="--dot:${palette[value]||palette[index]||"#64748b"}"></i><span>${value}</span><strong>${fmt.format(totals.get(value)||0)} kg</strong></label>`).join("");
     $(id).querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedValues.add(input.value):selectedValues.delete(input.value);render()});
   }
-  function renderMasterFilter(id,values,selectedValues){const input=$(id),count=values.filter(value=>selectedValues.has(value)).length;input.checked=count===values.length;input.indeterminate=count>0&&count<values.length;input.onclick=event=>event.stopPropagation();input.onchange=()=>{values.forEach(value=>input.checked?selectedValues.add(value):selectedValues.delete(value));render()}}
   function renderFilters(){
     const gearValues=catchGroups.map(([title])=>title.split(" · ")[0]),conditions=["Ferskt","Fryst"];
     if(!filtersInitialized){gearValues.forEach(value=>selectedGearGroups.add(value));conditions.forEach(value=>selectedConditions.add(value));filtersInitialized=true}
     const gearTotals=new Map(),conditionTotals=new Map();
     periodSpeciesRows().forEach(row=>{if(selectedConditions.has(row.condition)){const group=gearGroup(row.catch_method);gearTotals.set(group,(gearTotals.get(group)||0)+row.quantity_kg)}if(selectedGearGroups.has(gearGroup(row.catch_method)))conditionTotals.set(row.condition,(conditionTotals.get(row.condition)||0)+row.quantity_kg)});
-    renderMasterFilter("catchMaster",gearValues,selectedGearGroups);renderMasterFilter("conditionMaster",conditions,selectedConditions);renderChoiceFilter("catchOptions",gearValues,selectedGearGroups,gearTotals);renderChoiceFilter("conditionOptions",conditions,selectedConditions,conditionTotals);renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
+    renderChoiceFilter("catchOptions",gearValues,selectedGearGroups,gearTotals);renderChoiceFilter("conditionOptions",conditions,selectedConditions,conditionTotals);renderSideFilter("gearSummary",gearValues,selectedGearGroups,gearTotals,gearColours);renderSideFilter("conditionSummary",conditions,selectedConditions,conditionTotals,conditionColours);
   }
   function renderSizes(){
     const totals=new Map(); datedRows().forEach(row=>totals.set(seriesKey(row),(totals.get(seriesKey(row))||0)+row.quantity_kg));
     const groups=[...totals].sort((a,b)=>b[1]-a[1]);
-    $("sizes").innerHTML=groups.length?groups.map(([key,kg])=>{const [species,size]=key.split("|||");const colour=sizeColour(size);return `<button type="button" class="size-row ${focusedSize===key?"active":""}" data-key="${key}"><i style="--dot:${colour}"></i><span><b>${species}</b> · ${size}</span><strong>${fmt.format(kg)} kg</strong></button>`;}).join(""):'<span>Ongir støddarbólkar.</span>';
-    $("sizes").querySelectorAll("button").forEach(button=>button.onclick=()=>{focusedSize=focusedSize===button.dataset.key?"":button.dataset.key;render();});
+    groups.forEach(([key])=>{if(!knownSizeKeys.has(key)){knownSizeKeys.add(key);selectedSizeKeys.add(key)}});
+    $("sizes").innerHTML=groups.length?groups.map(([key,kg])=>{const [species,size]=key.split("|||");const colour=sizeColour(size);return `<label class="size-row ${selectedSizeKeys.has(key)?"active":""}"><input type="checkbox" value="${key}" ${selectedSizeKeys.has(key)?"checked":""}><i style="--dot:${colour}"></i><span><b>${species}</b> · ${size}</span><strong>${fmt.format(kg)} kg</strong></label>`;}).join(""):'<span>Ongir støddarbólkar.</span>';
+    $("sizes").querySelectorAll("input").forEach(input=>input.onchange=()=>{input.checked?selectedSizeKeys.add(input.value):selectedSizeKeys.delete(input.value);render()});
   }
   function render(){
     renderFilters();renderSizes(); const data=visibleRows();
@@ -64,19 +65,20 @@
     const sizeMode=metric==="size", monthly=!sizeMode&&days>400;
     const bucket=day=>sizeMode?weekKey(day):(monthly?monthKey(day):day);
     const keys=[...new Set(data.map(row=>bucket(row.date)))].sort();
-    chart.config.type=metric==="total"||sizeMode?"bar":"line";
-    chart.options.scales.x.stacked=sizeMode;chart.options.scales.y.stacked=sizeMode;
+    const splitGear=$("catchMaster").checked,splitCondition=$("conditionMaster").checked;
+    chart.config.type=metric==="total"?"bar":"line";
+    chart.options.scales.x.stacked=false;chart.options.scales.y.stacked=false;
     chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
-    const lineKey=row=>sizeMode?`${row.species}|||${row.size_group}`:row.species;
-    const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species}])).values()];
+    const lineKey=row=>`${sizeMode?`${row.species}|||${row.size_group}`:row.species}${splitGear?`|||${gearGroup(row.catch_method)}`:""}${splitCondition?`|||${row.condition}`:""}`;
+    const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species,size:row.size_group}])).values()];
     chart.data.labels=metric==="total"?series.map(item=>item.label):keys.map(key=>monthly?key:formatDate(key));
     if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:series.map(item=>data.filter(row=>lineKey(row)===item.key).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:series.map(item=>colours[speciesOrder.indexOf(item.species)])}];
     else {
-      chart.data.datasets=series.map(item=>{const base=colours[speciesOrder.indexOf(item.species)],size=item.label.split(" · ").pop(),colour=sizeMode?sizeColour(size):base;return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),stack:sizeMode?item.species:undefined,borderColor:colour,backgroundColor:sizeMode?colour:colour+"22",borderWidth:sizeMode?1:2,borderRadius:sizeMode?3:0,borderSkipped:false,tension:.16,pointRadius:monthly?2:1,barPercentage:.82,categoryPercentage:.78};});
+      chart.data.datasets=series.map((item,index)=>{const base=colours[speciesOrder.indexOf(item.species)],colour=splitGear||splitCondition?lineColours[index%lineColours.length]:(sizeMode?sizeColour(item.size):base);return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:colour,backgroundColor:colour+"18",borderWidth:2,tension:.16,pointRadius:monthly?2:1,pointHoverRadius:5,spanGaps:true};});
     }
     chart.$breakdownLines=metric==="total"?[]:keys.map(key=>{const pointRows=data.filter(row=>bucket(row.date)===key),gearTotals=new Map(),conditionTotals=new Map();pointRows.forEach(row=>{const group=gearGroup(row.catch_method);gearTotals.set(group,(gearTotals.get(group)||0)+row.quantity_kg);conditionTotals.set(row.condition,(conditionTotals.get(row.condition)||0)+row.quantity_kg)});const gearLines=catchGroups.map(([title])=>title.split(" · ")[0]).filter(group=>gearTotals.get(group)>0).map(group=>`${group}: ${fmt.format(gearTotals.get(group))} kg`),conditionLines=["Ferskt","Fryst"].filter(condition=>conditionTotals.get(condition)>0).map(condition=>`${condition}: ${fmt.format(conditionTotals.get(condition))} kg`);return [...(gearLines.length?["Veiðiháttur:",...gearLines]:[]),...(conditionLines.length?["Ferskt / fryst:",...conditionLines]:[])]});
     chart.update();
-    const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar${focusedSize?` · ${focusedSize.replace("|||"," · ")}`:""}`;
+    const total=data.reduce((sum,row)=>sum+row.quantity_kg,0); $("summary").textContent=`${fmt.format(total)} kg · ${data.length.toLocaleString("fo-FO")} skrásetingar`;
     $("rows").innerHTML=data.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.quantity_kg-a.quantity_kg).slice(0,1200).map(row=>`<tr><td>${formatDate(row.date)}</td><td>${row.species}</td><td>${row.size_group}</td><td>${gearGroup(row.catch_method)}</td><td>${row.condition}</td><td>${fmt.format(row.quantity_kg)}</td></tr>`).join("");
   }
   async function ensureFullHistory(){
@@ -136,5 +138,6 @@
     $("status").hidden=true; $("dashboard").hidden=false; renderSpecies(); setupTimeline(); render();
     $("allSpecies").onclick=()=>{selected.clear();speciesOrder.forEach(name=>selected.add(name));focusedSize="";renderSpecies();render()};
     $("metrics").querySelectorAll("button").forEach(button=>button.onclick=()=>{metric=button.dataset.metric;$("metrics").querySelectorAll("button").forEach(item=>item.classList.toggle("active",item===button));render()});
+    $("catchMaster").onclick=event=>event.stopPropagation();$("conditionMaster").onclick=event=>event.stopPropagation();$("catchMaster").onchange=render;$("conditionMaster").onchange=render;
   }).catch(error=>{$("status").textContent=`Norsku tølini kundu ikki vísast: ${error.message}`;$("updated").textContent="Tøl ikki tøk"});
 })();
