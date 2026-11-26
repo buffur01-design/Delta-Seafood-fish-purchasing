@@ -11,7 +11,7 @@
   const dateTickLimit = (count,width) => Math.max(2,Math.min(count,Math.floor(Math.max(320,width||900)/85)));
   function separateTimelineLabels(fromLabel,toLabel,fromPercent,toPercent){let a="-50%",b="-50%";if(toPercent-fromPercent<12){if(toPercent>85){a="-200%";b="-100%"}else if(fromPercent<15){a="0";b="100%"}else{a="-100%";b="0"}}fromLabel.style.transform=`translateX(${a})`;toLabel.style.transform=`translateX(${b})`}
   let rows=[], minDate="", maxDate="", latestStart="", fullLoaded=false, metric="quantity", focusedSize="", chart, timelineStart=0, timelineEnd=0, timelineMaximum=0, filtersInitialized=false;
-  const selected = new Set(speciesOrder.slice(0,6));
+  const selected = new Set(["Toskur"]);
   const selectedGearGroups = new Set(), selectedConditions = new Set(), selectedSizeKeys = new Set(), knownSizeKeys = new Set();
   const catchGroups = [
     ["Trol (Trawl) · aktive slæberedskaber",["Bunntrål","Bunntrål par","Bomtrål","Flytetrål","Reketrål (herunder sputniktrål)","Krepsetrål","Udefinert trål"]],

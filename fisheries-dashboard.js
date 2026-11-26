@@ -181,7 +181,7 @@
     combinedPriceChart:document.getElementById("combined-price-chart"),
     combinedPriceTitle:document.getElementById("combined-price-title")
   };
-  const defaultSpecies = ["Toskur","Upsi","Hýsa","Svartkalvi","Longa","Brosma"];
+  const defaultSpecies = ["Toskur"];
   const defaultSpeciesSet = new Set(defaultSpecies);
   const excludedSpecies = new Set([
     "Haválur",
