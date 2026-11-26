@@ -129,6 +129,8 @@ def classify_condition(ship_group: str, vessel: str) -> str:
         return "Fryst" if name in {"BRESTIR", "KAPPIN"} else "Ferskt"
     if group == "BLK. 3":
         return "Ferskt" if name == "NÚPUR" else "Fryst"
+    if group in {"FLAKATROLARAR", "RÆKJUSKIP"}:
+        return "Fryst"
     if group in {"BLK. 4", "BLK. 4T", "BLK. 5A", "BLK. 5B", "GARNASKIP"}:
         return "Ferskt"
     return "Ikki upplýst"
