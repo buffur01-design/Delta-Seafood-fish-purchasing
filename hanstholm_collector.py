@@ -24,8 +24,14 @@ if sys.platform == "win32":
 URL = "https://www.hanstholmfiskeauktion.dk/Specs"
 USER_AGENT = "DeltaSeafoodHanstholmCollector/1.0 (public expected-landings data; daily fetch)"
 LOG = logging.getLogger("hanstholm")
-FIELDS = ["auction_date", "species", "msc", "grade", "boxes", "quantity_kg"]
+FIELDS = ["auction_date", "species", "msc", "grade", "catch_method", "boxes", "quantity_kg"]
+OLD_FIELDS = ["auction_date", "species", "msc", "grade", "boxes", "quantity_kg"]
 VESSEL_FIELDS = ["auction_date", "vessel", "quantity_kg"]
+GEARS = [
+    ("Bomtrawl", "1"), ("Bundgarn", "2"), ("Fly", "3"), ("Garn", "4"),
+    ("Krog", "5"), ("Kroge og liner", "6"), ("Partrawl", "7"),
+    ("Pilk", "8"), ("Tejner", "9"), ("Trawl", "10"), ("Vod", "11"),
+]
 SPECIES_FAROESE = {
     "Blålange": "Blálonga",
     "Brosme": "Brosma",
@@ -65,7 +71,7 @@ def translate_grade(value: str) -> str:
     return f"Stødd {match.group(1)}" if match else value
 
 
-def parse(html: str) -> tuple[str, list[list], list[list]]:
+def parse(html: str, allow_empty: bool = False) -> tuple[str, list[list], list[list]]:
     soup = BeautifulSoup(html, "html.parser")
     date_input = soup.select_one("#phMain_dtSpecificationDate_I")
     if not date_input or not date_input.get("value"):
@@ -110,7 +116,7 @@ def parse(html: str) -> tuple[str, list[list], list[list]]:
             combined[key][5] += kg
     rows = list(combined.values())
 
-    if not rows:
+    if not rows and not allow_empty:
         raise ValueError("No recognizable species/grade rows; refusing to replace stored data")
 
     vessels: list[list] = []
@@ -131,6 +137,9 @@ def load_existing(path: Path) -> dict:
     if not path.exists():
         return {"rows": [], "vessels": []}
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("fields") == OLD_FIELDS:
+        payload["rows"] = [row[:4] + ["Ikki upplýst"] + row[4:] for row in payload.get("rows", [])]
+        payload["fields"] = FIELDS
     if payload.get("fields") != FIELDS or payload.get("vessel_fields") != VESSEL_FIELDS:
         raise ValueError("Existing Hanstholm dataset has an unexpected schema")
     return payload
@@ -162,10 +171,52 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default="data/hanstholm/hanstholm.json")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    response = requests.get(URL, timeout=(15, 120), headers={"User-Agent": USER_AGENT, "Accept-Language": "da,en;q=0.8"})
+    headers = {"User-Agent": USER_AGENT, "Accept-Language": "da,en;q=0.8"}
+    response = requests.get(URL, timeout=(15, 120), headers=headers)
     response.raise_for_status()
     response.encoding = "utf-8"
-    auction_date, rows, vessels = parse(response.text)
+    auction_date, base_rows, vessels = parse(response.text)
+    method_rows: list[list] = []
+    for method, value in GEARS:
+        session = requests.Session()
+        source = session.get(URL, timeout=(15, 120), headers=headers)
+        source.raise_for_status()
+        source.encoding = "utf-8"
+        soup = BeautifulSoup(source.text, "html.parser")
+        form: dict[str, str] = {
+            item["name"]: item.get("value", "")
+            for item in soup.select("input[name]")
+            if item.get("type", "").lower() not in {"image", "button"}
+        }
+        for select in soup.select("select[name]"):
+            option = select.select_one("option[selected]") or select.select_one("option")
+            form[select["name"]] = option.get("value", "") if option else ""
+        form["__EVENTTARGET"] = ""
+        form["ctl00$phMain$cboFishingGear"] = value
+        form["ctl00$phMain$btnPrint"] = "Udskriv"
+        filtered = session.post(URL, data=form, timeout=(15, 120), headers=headers)
+        filtered.raise_for_status()
+        filtered.encoding = "utf-8"
+        filtered_date, gear_rows, _ = parse(filtered.text, allow_empty=True)
+        if filtered_date != auction_date:
+            raise ValueError(f"Gear response date changed from {auction_date} to {filtered_date}")
+        method_rows.extend(row[:4] + [method] + row[4:] for row in gear_rows)
+        LOG.info("Collected %s rows for %s", len(gear_rows), method)
+
+    known: dict[tuple, list[float]] = {}
+    for day, species, msc, grade, _method, boxes, kg in method_rows:
+        totals = known.setdefault((day, species, msc, grade), [0.0, 0.0])
+        totals[0] += float(boxes or 0)
+        totals[1] += float(kg or 0)
+    for day, species, msc, grade, boxes, kg in base_rows:
+        used_boxes, used_kg = known.get((day, species, msc, grade), [0.0, 0.0])
+        remaining_kg = max(0.0, float(kg or 0) - used_kg)
+        remaining_boxes = max(0.0, float(boxes or 0) - used_boxes) if boxes is not None else None
+        if remaining_kg > 0.01:
+            method_rows.append([day, species, msc, grade, "Ikki upplýst", int(round(remaining_boxes)) if remaining_boxes is not None else None, remaining_kg])
+    rows = method_rows
+    if not rows:
+        raise ValueError("No gear-specific Hanstholm rows; refusing to replace stored data")
     destination = Path(args.out)
     write(destination, auction_date, rows, vessels)
     LOG.info("Saved %s species/grade rows and %s vessels for %s", len(rows), len(vessels), auction_date)
