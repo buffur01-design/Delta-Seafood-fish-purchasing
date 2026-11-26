@@ -69,10 +69,11 @@
     chart.config.type=metric==="total"?"bar":"line";
     chart.options.scales.x.stacked=false;chart.options.scales.y.stacked=false;
     chart.options.scales.x.ticks.maxTicksLimit=metric==="total"?12:dateTickLimit(keys.length,chart.width);chart.options.scales.x.ticks.autoSkip=true;chart.options.scales.x.ticks.maxRotation=metric==="total"?45:0;chart.options.scales.x.ticks.minRotation=metric==="total"?45:0;
-    const lineKey=row=>`${sizeMode?`${row.species}|||${row.size_group}`:row.species}${splitGear?`|||${gearGroup(row.catch_method)}`:""}${splitCondition?`|||${row.condition}`:""}`;
+    const groupBySize=sizeMode||metric==="total";
+    const lineKey=row=>`${groupBySize?`${row.species}|||${row.size_group}`:row.species}${splitGear?`|||${gearGroup(row.catch_method)}`:""}${splitCondition?`|||${row.condition}`:""}`;
     const series=[...new Map(data.map(row=>[lineKey(row),{key:lineKey(row),label:lineKey(row).replaceAll("|||"," · "),species:row.species,size:row.size_group}])).values()];
     chart.data.labels=metric==="total"?series.map(item=>item.label):keys.map(key=>monthly?key:formatDate(key));
-    if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:series.map(item=>data.filter(row=>lineKey(row)===item.key).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:series.map(item=>colours[speciesOrder.indexOf(item.species)])}];
+    if(metric==="total") chart.data.datasets=[{label:"Kilo tilsamans",data:series.map(item=>data.filter(row=>lineKey(row)===item.key).reduce((sum,row)=>sum+row.quantity_kg,0)),backgroundColor:series.map(item=>sizeColour(item.size)),borderColor:series.map(item=>sizeColour(item.size)),borderWidth:1}];
     else {
       chart.data.datasets=series.map((item,index)=>{const base=colours[speciesOrder.indexOf(item.species)],colour=splitGear||splitCondition?lineColours[index%lineColours.length]:(sizeMode?sizeColour(item.size):base);return{label:item.label,data:keys.map(key=>data.filter(row=>lineKey(row)===item.key&&bucket(row.date)===key).reduce((sum,row)=>sum+row.quantity_kg,0)),borderColor:colour,backgroundColor:colour+"18",borderWidth:2,tension:.16,pointRadius:monthly?2:1,pointHoverRadius:5,spanGaps:true};});
     }
