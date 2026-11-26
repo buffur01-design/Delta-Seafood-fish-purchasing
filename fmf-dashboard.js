@@ -85,6 +85,7 @@
   function fitTimelineWindow() { const from=Number(el.from.value),to=Number(el.to.value),span=Math.max(1,to-from);timelineStart=Math.max(0,from-span);timelineEnd=Math.min(timelineMaximum,to+Math.max(1,Math.round(span*.15)));el.from.min=el.to.min=timelineStart;el.from.max=el.to.max=timelineEnd;renderTimelineMonths(); }
   function panTimelineAtEdge(index) { const input=index===0?el.from:el.to,span=Math.max(1,timelineEnd-timelineStart),edge=Math.max(3,Math.round(span*.05)),shift=Math.max(14,Math.round(span*.5));if(index===0&&Number(input.value)<=timelineStart+edge&&timelineStart>0)timelineStart=Math.max(0,timelineStart-shift);if(index===1&&Number(input.value)>=timelineEnd-edge&&timelineEnd<timelineMaximum)timelineEnd=Math.min(timelineMaximum,timelineEnd+shift);el.from.min=el.to.min=timelineStart;el.from.max=el.to.max=timelineEnd;renderTimelineMonths(); }
   function renderGraphInfo(data, selectedData, chartNames, lineName) {
+    $("vesselSection").hidden = !el.split.checked;
     const vesselTotals = new Map();
     const sizeTotals = new Map();
     data.forEach(row => {
