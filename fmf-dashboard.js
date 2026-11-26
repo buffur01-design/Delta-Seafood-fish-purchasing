@@ -47,8 +47,12 @@
     }));
   }
   function renderGroups() {
-    const groups = [...new Set(rows.map(row => row.ship_group || "Ikki upplýst"))].sort((a,b)=>a.localeCompare(b,"fo"));
-    $("groupOptions").innerHTML = groups.map(group => `<label><input type="checkbox" value="${group.replaceAll('"','&quot;')}" ${selectedGroups.has(group)?"checked":""}>${group}</label>`).join("");
+    const source = dateRows().filter(row => selected.has(row.species) && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
+    const totals = new Map();
+    source.forEach(row => { const group = row.ship_group || "Ikki upplýst"; totals.set(group, (totals.get(group) || 0) + Number(row.quantity_kg || 0)); });
+    const groups = [...totals].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fo"));
+    $("groupSection").hidden = !$("splitGroups").checked;
+    $("groupOptions").innerHTML = groups.length ? groups.map(([group, kg], index) => `<label class="info-row ${selectedGroups.has(group) ? "is-selected" : ""}"><input class="info-check" type="checkbox" value="${group.replaceAll('"','&quot;')}" ${selectedGroups.has(group) ? "checked" : ""}><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${group}</span><span class="info-value">${fmt(kg)} kg</span></label>`).join("") : '<span class="info-empty">Eingir skipabólkar.</span>';
     $("groupOptions").querySelectorAll("input").forEach(input => input.onchange = () => { input.checked ? selectedGroups.add(input.value) : selectedGroups.delete(input.value); render(); });
   }
   function renderSizes() {
@@ -103,9 +107,9 @@
     el.graphSizes.innerHTML = sizes.length ? sizes.map(([name, kg], index) => `<div class="info-row size-row"><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${name}</span><span class="info-value">${fmt(kg)} kg</span></div>`).join("") : '<span class="info-empty">Eingir støddarbólkar.</span>';
   }
   function render() {
-    updateTimeline(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
+    updateTimeline(); renderGroups(); const baseData = baseFiltered(); const data = filtered(); const labels = dates.slice(+el.from.value, +el.to.value + 1);
     const singleVessel = selectedVessels.size === 1;
-    const splitGroups = $("splitGroups").classList.contains("active");
+    const splitGroups = $("splitGroups").checked;
     const lineName = row => metric === "size" && !focusedProductGroup ? row.product_group : (splitGroups ? `${row.species} · ${row.ship_group || "Ikki upplýst"}` : (el.split.checked && !singleVessel ? row.vessel : row.species));
     const totalKg = name => data.filter(row => lineName(row) === name).reduce((sum, row) => sum + Number(row.quantity_kg || 0), 0);
     const names = [...new Set(data.map(lineName))].sort((a, b) => totalKg(b) - totalKg(a) || a.localeCompare(b, "fo")).slice(0, 30);
@@ -168,8 +172,8 @@
     timelineMaximum = Math.max(0, dates.length - 1); [el.from,el.to].forEach(input=>{input.min=0;input.max=timelineMaximum}); el.from.value = Math.max(0, timelineMaximum - 89); el.to.value = timelineMaximum; fitTimelineWindow(); el.updated.textContent = `Dagført ${new Date(payload.updated_utc).toLocaleString("fo")}`;
     chart = new Chart($("chart"), { type: "line", data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, onClick: (_event, elements) => drillChartToVessels(elements), onHover: (event, elements) => { const canDrill = !el.split.checked || metric === "size"; event.native.target.style.cursor = elements.length && canDrill ? "pointer" : "default"; }, plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => Number(b.parsed.y || 0) - Number(a.parsed.y || 0), filter: item => Number(item.parsed.y || 0) > 0 } }, scales: { x: { title: { display: true, text: "Dagur" }, grid: { display: false }, ticks: {} }, y: { beginAtZero: true, title: { display: true, text: "Nøgd (kg)" } } } } });
     el.status.hidden = true; el.content.hidden = false; renderSpecies(); renderGroups(); renderSizes(); renderVessels(); render();
-    [el.from,el.to].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);renderSizes();renderVessels();render()};input.onchange=()=>{fitTimelineWindow();renderSizes();renderVessels();render()}}); el.split.onchange = () => { if(el.split.checked) $("splitGroups").classList.remove("active"); render(); }; el.vesselSearch.addEventListener("input", render);
-    $("splitGroups").onclick = () => { $("splitGroups").classList.toggle("active"); if($("splitGroups").classList.contains("active")) el.split.checked=false; render(); };
+    [el.from,el.to].forEach((input,index)=>{input.oninput=()=>{panTimelineAtEdge(index);renderSizes();renderVessels();render()};input.onchange=()=>{fitTimelineWindow();renderSizes();renderVessels();render()}}); el.split.onchange = () => { if(el.split.checked) $("splitGroups").checked = false; render(); }; el.vesselSearch.addEventListener("input", render);
+    $("splitGroups").onchange = () => { if($("splitGroups").checked) el.split.checked = false; render(); };
     el.selectAllVessels.onclick = () => { baseFiltered().forEach(row => selectedVessels.add(vesselKey(row))); el.split.checked = true; render(); };
     el.deselectAllVessels.onclick = () => { selectedVessels.clear(); el.split.checked = false; render(); };
     $("allSpecies").onclick = () => { focusedSpecies = focusedSize = focusedProductGroup = ""; selected = new Set(rows.map(row => row.species)); selectedVessels = new Set(rows.map(vesselKey)); el.split.checked = true; renderSpecies(); renderSizes(); renderVessels(); render(); };
