@@ -13,7 +13,7 @@
   const normalizeSpecies = name => String(name || "").replace(/\s*-\s*Stikkað?$/iu, "").replace(/\s*\(sek\.\)$/iu, "").trim();
   const el = { species: $("species"), sizes: $("sizes"), vessels: $("vessels"), sizeTitle: $("sizeTitle"), vesselTitle: $("vesselTitle"), split: $("splitVessels"), from: $("from"), to: $("to"), fromB: $("fromBubble"), toB: $("toBubble"), months: $("months"), timeline: $("timeline"), summary: $("summary"), body: $("rows"), graphVessels: $("graphVessels"), graphSizes: $("graphSizes"), vesselSearch: $("vesselSearch"), selectAllVessels: $("selectAllVessels"), deselectAllVessels: $("deselectAllVessels"), status: $("status"), content: $("content"), updated: $("updated") };
   let rows = [], dates = [], chart, metric = "quantity", focusedSpecies = "", focusedSize = "", focusedProductGroup = "", timelineStart = 0, timelineEnd = 0, timelineMaximum = 0;
-  let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set(), selectedConditions = new Set();
+  let selected = new Set(), selectedVessels = new Set(), selectedGroups = new Set(), selectedConditions = new Set(), expandedVesselGroups = new Set();
   const fmt = value => Number(value).toLocaleString("fo", { maximumFractionDigits: 2 });
   const dateTickLimit = (count, width) => Math.max(2, Math.min(count, Math.floor(Math.max(320, width || 900) / 85)));
   function separateTimelineLabels(fromLabel, toLabel, fromPercent, toPercent) {
@@ -47,6 +47,7 @@
     }));
   }
   function renderGroups() {
+    $("groupSection").querySelector("h3").textContent = "Veiðiháttur";
     const source = dateRows().filter(row => selected.has(row.species) && (!focusedSize || (row.size_group || "Onnur stødd") === focusedSize) && (!focusedProductGroup || row.product_group === focusedProductGroup));
     const totals = new Map();
     source.forEach(row => { const group = row.ship_group || "Ikki upplýst"; totals.set(group, (totals.get(group) || 0) + Number(row.quantity_kg || 0)); });
@@ -111,15 +112,17 @@
     vessels.forEach(item => { if (!groupedVessels.has(item.shipGroup)) groupedVessels.set(item.shipGroup, []); groupedVessels.get(item.shipGroup).push(item); });
     el.graphVessels.innerHTML = vessels.length ? [...groupedVessels].map(([group, items]) => {
       const selectedCount = items.filter(item => selectedVessels.has(item.key)).length;
-      const header = `<label class="vessel-group-header"><input class="vessel-group-check" type="checkbox" data-group="${group.replaceAll('"', '&quot;')}" ${selectedCount === items.length ? "checked" : ""}><span>${group}</span><small>${selectedCount}/${items.length}</small></label>`;
-      return header + items.map(item => {
+      const groupName = group.replaceAll('"', '&quot;');
+      const header = `<summary><input class="vessel-group-check" type="checkbox" data-group="${groupName}" ${selectedCount === items.length ? "checked" : ""}><span>${group}</span><small>${selectedCount}/${items.length}</small></summary>`;
+      return `<details class="vessel-group" data-group="${groupName}" ${expandedVesselGroups.has(group) ? "open" : ""}>${header}<div class="vessel-group-items">` + items.map(item => {
       const chartIndex = chartNames.indexOf(item.vessel);
       const colour = chartIndex >= 0 && lineName({ vessel: item.vessel, species: "", product_group: "" }) === item.vessel ? colours[chartIndex % colours.length] : "#9bbdca";
       const checked = selectedVessels.has(item.key);
       return `<label class="info-row ${checked ? "is-selected" : ""}"><input class="info-check" type="checkbox" data-key="${item.key.replaceAll('"', '&quot;')}" ${checked ? "checked" : ""}><i class="info-dot" style="--dot:${colour}"></i><span class="info-name">${item.vessel}${item.registration ? ` · ${item.registration}` : ""}</span><span class="info-value">${fmt(item.kg)} kg</span></label>`;
-      }).join("");
+      }).join("") + "</div></details>";
     }).join("") : '<span class="info-empty">Eingi skip í valda tíðarskeiðinum.</span>';
-    el.graphVessels.querySelectorAll(".vessel-group-check").forEach(input => { const groupItems = groupedVessels.get(input.dataset.group) || []; const count = groupItems.filter(item => selectedVessels.has(item.key)).length; input.indeterminate = count > 0 && count < groupItems.length; input.addEventListener("change", () => { groupItems.forEach(item => input.checked ? selectedVessels.add(item.key) : selectedVessels.delete(item.key)); el.split.checked = selectedVessels.size > 0; render(); }); });
+    el.graphVessels.querySelectorAll(".vessel-group").forEach(details => details.addEventListener("toggle", () => { details.open ? expandedVesselGroups.add(details.dataset.group) : expandedVesselGroups.delete(details.dataset.group); }));
+    el.graphVessels.querySelectorAll(".vessel-group-check").forEach(input => { const groupItems = groupedVessels.get(input.dataset.group) || []; const count = groupItems.filter(item => selectedVessels.has(item.key)).length; input.indeterminate = count > 0 && count < groupItems.length; input.addEventListener("click", event => event.stopPropagation()); input.addEventListener("change", () => { groupItems.forEach(item => input.checked ? selectedVessels.add(item.key) : selectedVessels.delete(item.key)); el.split.checked = selectedVessels.size > 0; render(); }); });
     el.graphVessels.querySelectorAll(".info-check").forEach(input => input.addEventListener("change", () => { input.checked ? selectedVessels.add(input.dataset.key) : selectedVessels.delete(input.dataset.key); el.split.checked = selectedVessels.size > 0; render(); }));
     el.graphSizes.innerHTML = sizes.length ? sizes.map(([name, kg], index) => `<div class="info-row size-row"><i class="info-dot" style="--dot:${colours[index % colours.length]}"></i><span class="info-name">${name}</span><span class="info-value">${fmt(kg)} kg</span></div>`).join("") : '<span class="info-empty">Eingir støddarbólkar.</span>';
   }
