@@ -2,21 +2,8 @@
   const navbar = document.querySelector(".navbar");
   if(!navbar) return;
 
-  let switcher = navbar.querySelector(".site-language-switcher");
-  if(!switcher){
-    switcher = document.createElement("div");
-    switcher.className = "site-language-switcher";
-    switcher.setAttribute("aria-label", "Choose language");
-    switcher.dataset.ariaLabelEn = "Choose language";
-    switcher.dataset.ariaLabelFo = "Vel mál";
-    switcher.innerHTML = `
-      <button type="button" data-lang="en">EN</button>
-      <button type="button" data-lang="fo">FO</button>
-    `;
-    navbar.appendChild(switcher);
-  }
-
-  let language = localStorage.getItem("deltaLanguage") === "fo" ? "fo" : "en";
+  const language = "fo";
+  localStorage.setItem("deltaLanguage", language);
   document.documentElement.lang = language;
 
   const menuRight = navbar.querySelector(".menu-right");
@@ -35,27 +22,6 @@
     ensurePrimaryLink("links.html", "Links");
     ensurePrimaryLink("esg.html", "ESG");
   }
-
-  switcher.querySelectorAll("button").forEach(button => {
-    const active = button.dataset.lang === language;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", active);
-
-    button.addEventListener("click", () => {
-      const nextLanguage = button.dataset.lang === "fo" ? "fo" : "en";
-      if(nextLanguage === language) return;
-      language = nextLanguage;
-      localStorage.setItem("deltaLanguage", language);
-      document.documentElement.lang = language;
-      switcher.querySelectorAll("button").forEach(option => {
-        const isActive = option.dataset.lang === language;
-        option.classList.toggle("active", isActive);
-        option.setAttribute("aria-pressed", isActive);
-      });
-      applyLanguage(language);
-      window.dispatchEvent(new CustomEvent("delta-language-change", { detail:{ language } }));
-    });
-  });
 
   function applyLanguage(language){
   const commonLabels = {

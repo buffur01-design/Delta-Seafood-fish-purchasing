@@ -2,11 +2,6 @@
   const navbar = document.querySelector(".navbar");
   if(!navbar || navbar.querySelector(".mobile-menu-toggle")) return;
 
-  const marketsInLeft = navbar.querySelector('.menu-left > a[href="markets.html"]');
-  if(marketsInLeft && marketsInLeft.parentElement){
-    marketsInLeft.parentElement.insertAdjacentElement("afterend", marketsInLeft);
-  }
-
   function getLabels(){
     return document.documentElement.lang === "fo"
       ? { open:"Opna valmynd", close:"Lat valmynd aftur" }
@@ -21,6 +16,7 @@
   toggle.innerHTML = "<span></span><span></span><span></span>";
 
   const menuGroups = Array.from(navbar.children).filter(element =>
+    element.classList.contains("site-nav-links") ||
     element.classList.contains("menu-left") ||
     element.classList.contains("menu-right") ||
     element.classList.contains("menu")
@@ -46,7 +42,7 @@
     setMenuOpen(!navbar.classList.contains("mobile-menu-open"));
   });
 
-  navbar.querySelectorAll('.menu-left a, .menu-right a, .menu a, a[href="markets.html"]').forEach(link => {
+  navbar.querySelectorAll('.site-nav-links a, .menu-left a, .menu-right a, .menu a, a[href="markets.html"]').forEach(link => {
     link.addEventListener("click", () => setMenuOpen(false));
   });
 
@@ -66,6 +62,6 @@
   });
 
   window.addEventListener("resize", () => {
-    if(window.innerWidth > 1100) setMenuOpen(false);
+    if(window.innerWidth > 700) setMenuOpen(false);
   });
 })();
