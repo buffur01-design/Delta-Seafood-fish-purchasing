@@ -720,6 +720,53 @@
     showChartHover(linkedChart,index);
   }
 
+  function updateMobileChartReadout(chartInstance,index){
+    const readout=chartInstance.$mobileReadout;
+    if(!readout || !chartInstance.data.labels.length) return;
+    const safeIndex=Math.max(0,Math.min(index,chartInstance.data.labels.length-1));
+    const focused=chartInstance.$highlightedDataset;
+    const rows=chartInstance.data.datasets
+      .map((dataset,datasetIndex)=>({dataset,datasetIndex,value:dataset.data[safeIndex]}))
+      .filter(item=>item.value!==null && item.value!==undefined && item.value>0)
+      .filter(item=>focused===null || focused===undefined || item.datasetIndex===focused)
+      .sort((a,b)=>b.value-a.value);
+    const unit=chartInstance.$metric==="price"?copy.priceUnit:copy.quantityUnit;
+    const formatter=chartInstance.$metric==="price"?price:number;
+    readout.replaceChildren();
+    const heading=document.createElement("strong");
+    heading.textContent=chartInstance.data.labels[safeIndex];
+    readout.appendChild(heading);
+    if(!rows.length){
+      const empty=document.createElement("span");
+      empty.textContent="—";
+      readout.appendChild(empty);
+      return;
+    }
+    rows.slice(0,8).forEach(({dataset,value})=>{
+      const row=document.createElement("span");
+      row.textContent=chartInstance.$metric==="total"
+        ? `${formatter.format(value)} ${unit}`
+        : `${dataset.label}: ${formatter.format(value)} ${unit}`;
+      readout.appendChild(row);
+    });
+  }
+
+  function addMobileChartScrubber(chartInstance,canvas){
+    const control=document.createElement("div");
+    control.className="dashboard-mobile-scrubber";
+    control.innerHTML='<label><span>Flyt eftir tíð</span><input type="range" min="0" max="0" value="0" step="1"></label><div class="dashboard-mobile-readout" aria-live="polite"></div>';
+    canvas.parentElement.insertBefore(control,canvas);
+    const input=control.querySelector("input");
+    chartInstance.$mobileScrubber=input;
+    chartInstance.$mobileReadout=control.querySelector(".dashboard-mobile-readout");
+    input.addEventListener("input",()=>{
+      const index=Number(input.value);
+      showChartHover(chartInstance,index);
+      syncCombinedHover(chartInstance,index);
+      updateMobileChartReadout(chartInstance,index);
+    });
+  }
+
   function chart(canvas){
     const instance=new Chart(canvas,{
       type:"line",
@@ -759,6 +806,7 @@
     });
     instance.$highlightedDataset=null;
     instance.$metric="quantity";
+    addMobileChartScrubber(instance,canvas);
     return instance;
   }
 
@@ -825,6 +873,11 @@
       chartInstance.data.datasets=lineDatasets(series,days,targetMetric,splitGroups,splitVessels);
     }
     chartInstance.update();
+    if(chartInstance.$mobileScrubber){
+      chartInstance.$mobileScrubber.max=Math.max(0,chartInstance.data.labels.length-1);
+      chartInstance.$mobileScrubber.value=Math.max(0,chartInstance.data.labels.length-1);
+      updateMobileChartReadout(chartInstance,Number(chartInstance.$mobileScrubber.value));
+    }
   }
 
   function render(){

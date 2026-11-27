@@ -714,6 +714,7 @@
     .dashboard-combined-chart[hidden]{ display:none; }
     .dashboard-combined-chart h4{ margin:0 0 10px; color:var(--ink); font-size:17px; }
     .dashboard-chart-wrap{ position:relative; height:470px; min-width:0; }
+    .dashboard-mobile-scrubber{ display:none; }
     .dashboard-vessel-picker{
       height:470px;
       padding:15px;
@@ -906,7 +907,30 @@
       .dashboard-filters{ grid-template-columns:1fr; }
       .dashboard-metric-toggle{ width:100%; margin-left:0; }
       .dashboard-metric-toggle button{ flex:1; }
-      .dashboard-chart-wrap{ height:300px; }
+      .dashboard-chart-wrap{ height:430px; }
+      .dashboard-chart-wrap canvas{ height:300px!important; }
+      .dashboard-mobile-scrubber{
+        display:block;
+        height:130px;
+        padding:0 4px 10px;
+      }
+      .dashboard-mobile-scrubber label{ display:grid; gap:5px; color:#17394a; font-size:12px; font-weight:800; }
+      .dashboard-mobile-scrubber input{ width:100%; margin:0; accent-color:#08752f; touch-action:pan-x; }
+      .dashboard-mobile-readout{
+        display:grid;
+        gap:2px;
+        max-height:88px;
+        margin-top:6px;
+        padding:7px 9px;
+        overflow:auto;
+        border:1px solid #c9dfe9;
+        border-radius:9px;
+        background:#f7fbfd;
+        color:#17394a;
+        font-size:11px;
+        line-height:1.35;
+      }
+      .dashboard-mobile-readout strong{ color:#08752f; }
       .dashboard-chart-stage.has-vessel-picker{ grid-template-columns:1fr; }
       .dashboard-vessel-picker{ height:auto; }
       .dashboard-vessel-options{ max-height:240px; }
@@ -1517,7 +1541,7 @@
   <script>
     if(new URLSearchParams(window.location.search).get("view") !== "selling"){
       const dashboardScript = document.createElement("script");
-      dashboardScript.src = "fisheries-dashboard.js?v=34";
+      dashboardScript.src = "fisheries-dashboard.js?v=35";
       document.body.appendChild(dashboardScript);
 
       window.addEventListener("delta-language-change", () => {
